@@ -18,15 +18,15 @@ class StorageConfigTest {
 
     @Autowired
     @Qualifier("traineeStorage")
-    private Map<Integer, Trainee> traineeStorage;
+    private Map<Long, Trainee> traineeStorage;
 
     @Autowired
     @Qualifier("trainerStorage")
-    private Map<Integer, Trainer> trainerStorage;
+    private Map<Long, Trainer> trainerStorage;
 
     @Autowired
     @Qualifier("trainingStorage")
-    private Map<Integer, Training> trainingStorage;
+    private Map<Long, Training> trainingStorage;
 
     @Test
     void createsThreeIndependentStorages() {

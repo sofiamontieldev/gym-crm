@@ -36,6 +36,14 @@ public class User {
         return username;
     }
 
+    /**
+     * Returns the generated password for the profile.
+     * The password is intentionally excluded from toString() and logs.
+     */
+    public String getPassword() {
+        return password;
+    }
+
     public boolean isActive() {
         return isActive;
     }
