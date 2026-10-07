@@ -11,7 +11,7 @@ import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 @SpringJUnitConfig(AppConfig.class)
 class StorageConfigTest {
@@ -30,9 +30,9 @@ class StorageConfigTest {
 
     @Test
     void createsThreeIndependentStorages() {
-        assertTrue(traineeStorage.isEmpty());
-        assertTrue(trainerStorage.isEmpty());
-        assertTrue(trainingStorage.isEmpty());
+        assertFalse(traineeStorage.isEmpty());
+        assertFalse(trainerStorage.isEmpty());
+        assertFalse(trainingStorage.isEmpty());
 
         assertNotSame(traineeStorage, trainerStorage);
         assertNotSame(traineeStorage, trainingStorage);
