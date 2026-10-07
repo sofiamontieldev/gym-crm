@@ -1,0 +1,3 @@
+TRAINEE;id=100;firstName=Alicia;lastName=Montoya;password=FirstPass1!;active=true;dateOfBirth=1992-10-24;address=Calle 63 # 42-80
+TRAINER;id=200;firstName=Sara;lastName=Martinez;password=SecondPass2!;active=true;specialization=FITNESS
+TRAINING;id=300;traineeId=100;trainerId=200;trainingName=Morning Fitness;trainingType=FITNESS;trainingDate=2026-10-05;trainingDuration=60

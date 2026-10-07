@@ -32,4 +32,12 @@ public class TrainingDAO {
     public List<Training> findAll() {
         return new ArrayList<>(storage.values());
     }
+
+    public long nextId() {
+        return storage.keySet()
+                .stream()
+                .mapToLong(Long::longValue)
+                .max()
+                .orElse(0L) + 1;
+    }
 }

@@ -10,7 +10,6 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 public class TrainingService {
@@ -18,7 +17,6 @@ public class TrainingService {
     private static final Logger log = LoggerFactory.getLogger(TrainingService.class);
 
     private final TrainingDAO trainingDAO;
-    private final AtomicLong idSequence = new AtomicLong(1);
 
     public TrainingService(TrainingDAO trainingDAO) {
         this.trainingDAO = trainingDAO;
@@ -40,7 +38,7 @@ public class TrainingService {
                 trainingDate,
                 trainingDuration);
 
-        Long trainingId = idSequence.getAndIncrement();
+        Long trainingId = trainingDAO.nextId();
         trainingDAO.save(trainingId, training);
         log.info("Training created with id {}", trainingId);
         return training;

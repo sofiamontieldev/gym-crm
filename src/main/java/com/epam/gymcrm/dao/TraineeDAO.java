@@ -36,4 +36,12 @@ public class TraineeDAO {
     public void deleteById(Long id) {
         storage.remove(id);
     }
+
+    public long nextId() {
+        return storage.keySet()
+                .stream()
+                .mapToLong(Long::longValue)
+                .max()
+                .orElse(0L) + 1;
+    }
 }

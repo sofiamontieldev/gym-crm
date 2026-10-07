@@ -10,19 +10,37 @@ import java.util.Set;
 @Component
 public class UsernameGenerator {
 
-    public String generate(
+    private final Set<String> assignedUsernames = new HashSet<>();
+
+    public synchronized String generate(String firstName, String lastName) {
+        return generateUniqueUsername(firstName, lastName, assignedUsernames);
+    }
+
+    public synchronized String generate(
             String firstName,
             String lastName,
             Collection<? extends User> existingUsers) {
 
-        String baseUsername = firstName + "." + lastName;
         Set<String> existingUsernames = new HashSet<>();
+        existingUsernames.addAll(assignedUsernames);
 
         for (User user : existingUsers) {
             existingUsernames.add(user.getUsername());
         }
 
+        String username = generateUniqueUsername(firstName, lastName, existingUsernames);
+        assignedUsernames.add(username);
+        return username;
+    }
+
+    private String generateUniqueUsername(
+            String firstName,
+            String lastName,
+            Set<String> existingUsernames) {
+
+        String baseUsername = firstName + "." + lastName;
         if (!existingUsernames.contains(baseUsername)) {
+            assignedUsernames.add(baseUsername);
             return baseUsername;
         }
 
@@ -34,6 +52,7 @@ public class UsernameGenerator {
             suffix++;
         } while (existingUsernames.contains(candidate));
 
+        assignedUsernames.add(candidate);
         return candidate;
     }
 }

@@ -10,7 +10,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 public class TrainerService {
@@ -20,7 +19,6 @@ public class TrainerService {
     private final TrainerDAO trainerDAO;
     private final PasswordGenerator passwordGenerator;
     private final UsernameGenerator usernameGenerator;
-    private final AtomicLong idSequence = new AtomicLong(1);
 
     public TrainerService(
             TrainerDAO trainerDAO,
@@ -39,12 +37,11 @@ public class TrainerService {
 
         String username = usernameGenerator.generate(
                 firstName,
-                lastName,
-                trainerDAO.findAll());
+                lastName);
 
         Trainer trainer = new Trainer(
                 new User.Builder()
-                        .setId(idSequence.getAndIncrement())
+                        .setId(trainerDAO.nextId())
                         .setFirstName(firstName)
                         .setLastName(lastName)
                         .setUsername(username)
