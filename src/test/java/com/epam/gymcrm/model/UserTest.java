@@ -13,10 +13,10 @@ class UserTest {
     void shouldUpdatePersonalData() {
         User user = createUser();
 
-        user.updatePersonalData("Michael", "Brown");
+        user.updatePersonalData("Jose", "Vargas");
 
-        assertEquals("Michael", user.getFirstName());
-        assertEquals("Brown", user.getLastName());
+        assertEquals("Jose", user.getFirstName());
+        assertEquals("Vargas", user.getLastName());
     }
 
     @Test
@@ -40,9 +40,9 @@ class UserTest {
     private static User createUser() {
         return new User.Builder()
                 .setId(1L)
-                .setFirstName("John")
-                .setLastName("Smith")
-                .setUsername("John.Smith")
+                .setFirstName("Pepito")
+                .setLastName("Perez")
+                .setUsername("Pepito.Perez")
                 .setPassword("Abc1234567")
                 .setActive(true)
                 .build();

@@ -56,12 +56,12 @@ class TraineeDAOTest {
         return new Trainee(
                 new User.Builder()
                         .setId(id)
-                        .setFirstName("John")
-                        .setLastName("Smith")
-                        .setUsername("John.Smith" + id)
+                        .setFirstName("Juan")
+                        .setLastName("Perez")
+                        .setUsername("Juan.Perez" + id)
                         .setPassword("Abc1234567")
                         .setActive(true),
                 LocalDate.of(1995, 4, 12),
-                "Main Street 123");
+                "Calle 30A # 63-84");
     }
 }

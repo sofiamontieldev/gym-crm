@@ -38,13 +38,13 @@ class GymCrmFacadeTest {
     void shouldDelegateCreateTrainee() {
         Trainee expected = mock(Trainee.class);
         LocalDate dateOfBirth = LocalDate.of(1995, 4, 12);
-        when(traineeService.createTrainee("John", "Smith", dateOfBirth, "Address"))
+        when(traineeService.createTrainee("Juan", "Perez", dateOfBirth, "Address"))
                 .thenReturn(expected);
 
-        Trainee result = facade.createTrainee("John", "Smith", dateOfBirth, "Address");
+        Trainee result = facade.createTrainee("Juan", "Perez", dateOfBirth, "Address");
 
         assertSame(expected, result);
-        verify(traineeService).createTrainee("John", "Smith", dateOfBirth, "Address");
+        verify(traineeService).createTrainee("Juan", "Perez", dateOfBirth, "Address");
     }
 
     @Test

@@ -10,15 +10,15 @@ class UsernameGeneratorTest {
     void shouldGenerateBaseUsernameForFirstUser() {
         UsernameGenerator generator = new UsernameGenerator();
 
-        assertEquals("John.Smith", generator.generate("John", "Smith"));
+        assertEquals("Pepito.Perez", generator.generate("Pepito", "Perez"));
     }
 
     @Test
     void shouldAddSerialSuffixForRepeatedNames() {
         UsernameGenerator generator = new UsernameGenerator();
 
-        assertEquals("John.Smith", generator.generate("John", "Smith"));
-        assertEquals("John.Smith1", generator.generate("John", "Smith"));
-        assertEquals("John.Smith2", generator.generate("John", "Smith"));
+        assertEquals("Pepito.Perez", generator.generate("Pepito", "Perez"));
+        assertEquals("Pepito.Smith1", generator.generate("Pepito", "Perez"));
+        assertEquals("Pepito.Smith2", generator.generate("Pepito", "Perez"));
     }
 }

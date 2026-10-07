@@ -45,13 +45,13 @@ class TraineeServiceTest {
     @Test
     void shouldCreateTraineeWithGeneratedCredentials() {
         Trainee trainee = traineeService.createTrainee(
-                "John",
-                "Smith",
+                "Pablo",
+                "Ordoñez",
                 LocalDate.of(1995, 4, 12),
                 "Main Street 123");
 
         assertEquals(1L, trainee.getId());
-        assertEquals("John.Smith", trainee.getUsername());
+        assertEquals("Pablo.Ordoñez", trainee.getUsername());
         assertNotNull(trainee.getPassword());
         assertEquals(10, trainee.getPassword().length());
         assertTrue(trainee.isActive());
@@ -61,18 +61,18 @@ class TraineeServiceTest {
     @Test
     void shouldGenerateUniqueUsernameAcrossTraineesAndTrainers() {
         Trainee trainee = traineeService.createTrainee(
-                "John", "Smith", LocalDate.of(1995, 4, 12), "Address");
+                "Pablo", "Ordoñez", LocalDate.of(1995, 4, 12), "Address");
         Trainer trainer = trainerService.createTrainer(
-                "John", "Smith", TrainingType.FITNESS);
+                "Pablo", "Ordoñez", TrainingType.FITNESS);
 
-        assertEquals("John.Smith", trainee.getUsername());
-        assertEquals("John.Smith1", trainer.getUsername());
+        assertEquals("Pablo.Ordoñez", trainee.getUsername());
+        assertEquals("Pablo.Smith1", trainer.getUsername());
     }
 
     @Test
     void shouldUpdateTraineeWithoutChangingCredentials() {
         Trainee trainee = traineeService.createTrainee(
-                "John", "Smith", LocalDate.of(1995, 4, 12), "Old Address");
+                "Pablo", "Ordoñez", LocalDate.of(1995, 4, 12), "Old Address");
         String username = trainee.getUsername();
         String password = trainee.getPassword();
 
@@ -98,8 +98,8 @@ class TraineeServiceTest {
                 IllegalArgumentException.class,
                 () -> traineeService.updateTrainee(
                         999L,
-                        "John",
-                        "Smith",
+                        "Pablo",
+                        "Ordoñez",
                         LocalDate.of(1995, 4, 12),
                         "Address"));
     }
@@ -107,7 +107,7 @@ class TraineeServiceTest {
     @Test
     void shouldDeleteTrainee() {
         Trainee trainee = traineeService.createTrainee(
-                "John", "Smith", LocalDate.of(1995, 4, 12), "Address");
+                "Pablo", "Ordoñez", LocalDate.of(1995, 4, 12), "Address");
 
         traineeService.deleteTrainee(trainee.getId());
 
