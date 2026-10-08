@@ -1,43 +1,38 @@
 package com.epam.gymcrm.dao;
 
 import com.epam.gymcrm.model.Trainer;
-import org.springframework.beans.factory.annotation.Qualifier;
+import org.hibernate.Session;
+import org.hibernate.SessionFactory;
 import org.springframework.stereotype.Repository;
 
-import java.util.Map;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
 @Repository
 public class TrainerDAO {
 
-    private final Map<Long, Trainer> storage;
+    private final SessionFactory sessionFactory;
 
-    public TrainerDAO(
-            @Qualifier("trainerStorage")
-            Map<Long, Trainer> storage) {
-        this.storage = storage;
+    public TrainerDAO(SessionFactory sessionFactory) {
+        this.sessionFactory = sessionFactory;
     }
 
     public void save(Trainer trainer) {
-        storage.put(trainer.getId(), trainer);
+        Session session = sessionFactory.getCurrentSession();
+        if (trainer.getId() == null) {
+            session.persist(trainer);
+        } else {
+            session.merge(trainer);
+        }
     }
 
     public Optional<Trainer> findById(Long id) {
-        return Optional.ofNullable(storage.get(id));
+        return Optional.ofNullable(sessionFactory.getCurrentSession().find(Trainer.class, id));
     }
 
     public List<Trainer> findAll() {
-        return new ArrayList<>(storage.values());
-    }
-
-    public long nextId() {
-        return storage.keySet()
-                .stream()
-                .mapToLong(Long::longValue)
-                .max()
-                .orElse(0L) + 1;
+        return sessionFactory.getCurrentSession()
+                .createQuery("from Trainer order by id", Trainer.class)
+                .getResultList();
     }
 }
-

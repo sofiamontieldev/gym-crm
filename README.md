@@ -1,131 +1,88 @@
 # Gym CRM
 
-Spring Core module for managing trainees, trainers and trainings in an in-memory gym CRM.
+Spring Core and Hibernate module for managing trainees, trainers and trainings in an H2 in-memory database.
+
+## Quick start with IntelliJ IDEA
+
+1. Extract the `.rar` or `.zip` archive.
+2. Open the extracted folder in IntelliJ IDEA using `pom.xml`.
+3. Configure the project SDK as **JDK 21**.
+4. Open a terminal in the project root and run:
+
+```bash
+mvn clean test
+```
+
+The command compiles the project, creates a temporary H2 schema and runs all tests. Maven must be installed and available in the system `PATH`.
 
 ## Requirements
 
 - JDK 21
 - Maven
-- IntelliJ IDEA, Visual Studio Code or another Java IDE
+- IntelliJ IDEA or another Java IDE
 
-Verify the Java installation:
+Verify the installation with:
 
 ```bash
 java -version
 mvn -version
 ```
 
-The Maven compiler is configured for Java 21.
-
-## Build and run
-
-Run the tests and compile the project:
-
-```bash
-mvn clean test
-```
-
-Run the application:
+## Run the application
 
 ```bash
 mvn exec:java
 ```
 
-The application starts a Spring `ApplicationContext`. The initial records are loaded from:
+The application starts a Spring `ApplicationContext`, creates the H2 database in memory and lets Hibernate generate the schema. No external database installation is required.
 
-```text
-src/main/resources/initial-data.csv
-```
+## Persistence
 
-## Initial data
-
-The path is configured in:
-
-```text
-src/main/resources/application.properties
-```
-
-Current configuration:
+The JDBC and Hibernate settings are in `src/main/resources/application.properties`.
 
 ```properties
-gym.crm.initial-data.path=classpath:initial-data.csv
+db.url=jdbc:h2:mem:gymcrm;DB_CLOSE_DELAY=-1
+hibernate.hbm2ddl.auto=create-drop
 ```
 
-The file uses one record per line. Fields are separated by `;` and use the `name=value` format:
-
-```text
-TRAINEE;id=100;firstName=Alice;lastName=Johnson;password=SeedPass1!;active=true;dateOfBirth=1992-05-10;address=Main Street 1
-TRAINER;id=200;firstName=Bob;lastName=Martinez;password=SeedPass2!;active=true;specialization=FITNESS
-TRAINING;id=300;traineeId=100;trainerId=200;trainingName=Morning Fitness;trainingType=FITNESS;trainingDate=2026-10-05;trainingDuration=60
-```
-
-`InitialDataLoader` reads this file during Spring startup and fills the three independent maps.
+The database exists while the application context is active and is discarded when the process ends. Hibernate is the only source of application data; the previous CSV and map storage are not used.
 
 ## Architecture
 
 ```text
 GymCrmFacade
       |
-      +--> TraineeService --> TraineeDAO --> traineeStorage
-      +--> TrainerService --> TrainerDAO --> trainerStorage
-      +--> TrainingService -> TrainingDAO -> trainingStorage
+      +--> TraineeService --> TraineeDAO --+
+      +--> TrainerService --> TrainerDAO ---+--> Hibernate SessionFactory --> H2
+      +--> TrainingService -> TrainingDAO --+
 ```
 
-The storage is intentionally in memory because this is a Spring Core exercise. There is no database or web layer.
+Required dependencies use constructor injection. Service write operations are transactional, and read operations use read-only transactions where appropriate.
 
-## Packages
+The persistent model uses composition instead of inheritance:
 
-```text
-src/main/java/com/epam/gymcrm
-├── config       Spring configuration and storage beans
-├── model        User, Trainee, Trainer, Training and TrainingType
-├── dao          In-memory data access objects
-├── service      Business operations and username/password generators
-├── facade       Facade that delegates to the services
-└── loader       Initial data loader
-```
+- `Trainee` has one `User`.
+- `Trainer` has one `User` and one `TrainingType` specialization.
+- `Training` references a trainee, trainer and training type through foreign keys.
+- Trainees and trainers use the `Trainee2Trainer` many-to-many join table.
 
-## Injection decision
+## Business rules in this stage
 
-The project uses constructor injection for required dependencies:
+- Usernames use the `FirstName.LastName` format and repeated names receive a numeric suffix.
+- New passwords contain exactly 10 random characters.
+- Passwords are excluded from logs and `toString()` output.
+- Passwords remain plain text only because this is an academic Hibernate stage. A production system should store passwords with a secure password-hashing algorithm such as Argon2id, bcrypt or scrypt.
+- Training duration must be greater than zero.
+- Training types are persistent fixed values: `FITNESS`, `YOGA`, `ZUMBA`, `STRETCHING` and `RESISTANCE`.
 
-- DAOs receive their storage map through the constructor.
-- Services receive DAOs and generators through the constructor.
-- The facade receives all services through the constructor.
-
-Constructor injection was selected because it makes dependencies explicit, prevents partially initialized objects and simplifies unit testing. The task mentions setter injection for some dependencies; if the evaluator checks that requirement literally, only those specific dependencies can be adapted to setter injection without changing the rest of the design.
-
-## Username and password rules
-
-- Usernames use `FirstName.LastName`.
-- If the username already exists for another trainee or trainer, a numeric suffix is added: `John.Smith1`.
-- New profile passwords contain exactly 10 random characters.
-- Passwords are not written to logs or `toString()` output.
-
-The exercise stores the generated password in the profile because that is part of the requested model. A production system should store a password hash instead of the raw password.
-
-## Services
-
-`TraineeService` supports create, update, delete, select by id and select all.
-
-`TrainerService` supports create, update, select by id and select all.
-
-`TrainingService` supports create, select by id and select all.
-
-Missing records are represented with `Optional` for select operations. Update and delete operations throw `IllegalArgumentException` when the requested profile does not exist.
+Automatic seeding, authentication, training filters and complete transactional deletion are planned for the next implementation phases.
 
 ## Tests
 
-Tests are located under:
-
-```text
-src/test/java
-```
+Tests are located in `src/test/java` and cover generators, model behavior, service delegation, Spring/Hibernate configuration, schema creation and entity relationships using H2.
 
 Run them with:
 
 ```bash
-mvn test
+mvn clean test
 ```
-
-The service and loader tests are the next testing stage of the project implementation.

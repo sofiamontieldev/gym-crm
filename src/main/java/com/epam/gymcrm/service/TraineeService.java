@@ -6,6 +6,7 @@ import com.epam.gymcrm.model.User;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -30,6 +31,7 @@ public class TraineeService {
         this.usernameGenerator = usernameGenerator;
     }
 
+    @Transactional
     public Trainee createTrainee(
             String firstName,
             String lastName,
@@ -40,22 +42,22 @@ public class TraineeService {
                 firstName,
                 lastName);
 
-        Trainee trainee = new Trainee(
-                new User.Builder()
-                        .setId(traineeDAO.nextId())
+        User user = new User.Builder()
                         .setFirstName(firstName)
                         .setLastName(lastName)
                         .setUsername(username)
                         .setPassword(passwordGenerator.generate())
-                        .setActive(true),
-                dateOfBirth,
-                address);
+                        .setActive(true)
+                        .build();
+
+        Trainee trainee = new Trainee(user, dateOfBirth, address);
 
         traineeDAO.save(trainee);
         log.info("Trainee created with id {} and username {}", trainee.getId(), trainee.getUsername());
         return trainee;
     }
 
+    @Transactional
     public Trainee updateTrainee(
             Long id,
             String firstName,
@@ -73,16 +75,19 @@ public class TraineeService {
         return trainee;
     }
 
+    @Transactional
     public void deleteTrainee(Long id) {
         findRequired(id);
         traineeDAO.deleteById(id);
         log.info("Trainee deleted with id {}", id);
     }
 
+    @Transactional(readOnly = true)
     public Optional<Trainee> selectTrainee(Long id) {
         return traineeDAO.findById(id);
     }
 
+    @Transactional(readOnly = true)
     public List<Trainee> selectAllTrainees() {
         return traineeDAO.findAll();
     }

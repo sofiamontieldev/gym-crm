@@ -1,9 +1,7 @@
 package com.epam.gymcrm.service;
 
-import com.epam.gymcrm.model.User;
 import org.springframework.stereotype.Component;
 
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -14,23 +12,6 @@ public class UsernameGenerator {
 
     public synchronized String generate(String firstName, String lastName) {
         return generateUniqueUsername(firstName, lastName, assignedUsernames);
-    }
-
-    public synchronized String generate(
-            String firstName,
-            String lastName,
-            Collection<? extends User> existingUsers) {
-
-        Set<String> existingUsernames = new HashSet<>();
-        existingUsernames.addAll(assignedUsernames);
-
-        for (User user : existingUsers) {
-            existingUsernames.add(user.getUsername());
-        }
-
-        String username = generateUniqueUsername(firstName, lastName, existingUsernames);
-        assignedUsernames.add(username);
-        return username;
     }
 
     private String generateUniqueUsername(

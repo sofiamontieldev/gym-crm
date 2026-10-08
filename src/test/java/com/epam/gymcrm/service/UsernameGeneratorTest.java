@@ -18,7 +18,7 @@ class UsernameGeneratorTest {
         UsernameGenerator generator = new UsernameGenerator();
 
         assertEquals("Pepito.Perez", generator.generate("Pepito", "Perez"));
-        assertEquals("Pepito.Smith1", generator.generate("Pepito", "Perez"));
-        assertEquals("Pepito.Smith2", generator.generate("Pepito", "Perez"));
+        assertEquals("Pepito.Perez1", generator.generate("Pepito", "Perez"));
+        assertEquals("Pepito.Perez2", generator.generate("Pepito", "Perez"));
     }
 }

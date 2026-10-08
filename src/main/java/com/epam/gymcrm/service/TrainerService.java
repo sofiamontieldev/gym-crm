@@ -7,6 +7,7 @@ import com.epam.gymcrm.model.User;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -30,6 +31,7 @@ public class TrainerService {
         this.usernameGenerator = usernameGenerator;
     }
 
+    @Transactional
     public Trainer createTrainer(
             String firstName,
             String lastName,
@@ -39,21 +41,22 @@ public class TrainerService {
                 firstName,
                 lastName);
 
-        Trainer trainer = new Trainer(
-                new User.Builder()
-                        .setId(trainerDAO.nextId())
+        User user = new User.Builder()
                         .setFirstName(firstName)
                         .setLastName(lastName)
                         .setUsername(username)
                         .setPassword(passwordGenerator.generate())
-                        .setActive(true),
-                specialization);
+                        .setActive(true)
+                        .build();
+
+        Trainer trainer = new Trainer(user, specialization);
 
         trainerDAO.save(trainer);
         log.info("Trainer created with id {} and username {}", trainer.getId(), trainer.getUsername());
         return trainer;
     }
 
+    @Transactional
     public Trainer updateTrainer(
             Long id,
             String firstName,
@@ -69,10 +72,12 @@ public class TrainerService {
         return trainer;
     }
 
+    @Transactional(readOnly = true)
     public Optional<Trainer> selectTrainer(Long id) {
         return trainerDAO.findById(id);
     }
 
+    @Transactional(readOnly = true)
     public List<Trainer> selectAllTrainers() {
         return trainerDAO.findAll();
     }

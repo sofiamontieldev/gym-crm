@@ -1,47 +1,42 @@
 package com.epam.gymcrm.dao;
 
 import com.epam.gymcrm.model.Trainee;
-import org.springframework.beans.factory.annotation.Qualifier;
+import org.hibernate.Session;
+import org.hibernate.SessionFactory;
 import org.springframework.stereotype.Repository;
 
-import java.util.Map;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
 @Repository
 public class TraineeDAO {
 
-    private final Map<Long, Trainee> storage;
+    private final SessionFactory sessionFactory;
 
-    public TraineeDAO(
-        @Qualifier("traineeStorage")
-        Map<Long, Trainee> storage) {
-
-        this.storage = storage;
+    public TraineeDAO(SessionFactory sessionFactory) {
+        this.sessionFactory = sessionFactory;
     }
 
     public void save(Trainee trainee) {
-        storage.put(trainee.getId(), trainee);
+        Session session = sessionFactory.getCurrentSession();
+        if (trainee.getId() == null) {
+            session.persist(trainee);
+        } else {
+            session.merge(trainee);
+        }
     }
 
     public Optional<Trainee> findById(Long id) {
-        return Optional.ofNullable(storage.get(id));
+        return Optional.ofNullable(sessionFactory.getCurrentSession().find(Trainee.class, id));
     }
 
     public List<Trainee> findAll() {
-        return new ArrayList<>(storage.values());
+        return sessionFactory.getCurrentSession()
+                .createQuery("from Trainee order by id", Trainee.class)
+                .getResultList();
     }
 
     public void deleteById(Long id) {
-        storage.remove(id);
-    }
-
-    public long nextId() {
-        return storage.keySet()
-                .stream()
-                .mapToLong(Long::longValue)
-                .max()
-                .orElse(0L) + 1;
+        findById(id).ifPresent(sessionFactory.getCurrentSession()::remove);
     }
 }

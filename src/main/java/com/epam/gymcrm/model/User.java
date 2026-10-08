@@ -1,23 +1,48 @@
 package com.epam.gymcrm.model;
 
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+
 import java.util.Objects;
 
+@Entity
+@Table(name = "users")
 public class User {
 
-    private final Long id;
-    private String firstName;
-    private String lastName;
-    private final String username;
-    private final String password;
-    private boolean isActive;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-    protected User(Builder builder) {
+    @Column(name = "first_name", nullable = false)
+    private String firstName;
+
+    @Column(name = "last_name", nullable = false)
+    private String lastName;
+
+    @Column(nullable = false, unique = true)
+    private String username;
+
+    @Column(nullable = false, length = 10)
+    private String password;
+
+    @Column(name = "is_active", nullable = false)
+    private boolean active;
+
+    protected User() {
+        // Required by Hibernate.
+    }
+
+    private User(Builder builder) {
         this.id = builder.id;
-        this.firstName = builder.firstName;
-        this.lastName = builder.lastName;
-        this.username = builder.username;
-        this.password = builder.password;
-        this.isActive = builder.isActive;
+        this.firstName = requireText(builder.firstName, "firstName");
+        this.lastName = requireText(builder.lastName, "lastName");
+        this.username = requireText(builder.username, "username");
+        this.password = requirePassword(builder.password);
+        this.active = builder.active;
     }
 
     public Long getId() {
@@ -37,15 +62,15 @@ public class User {
     }
 
     /**
-     * Returns the generated password for the profile.
-     * The password is intentionally excluded from toString() and logs.
+     * Returns the generated password for authentication workflows.
+     * The value is intentionally excluded from logs and toString().
      */
     public String getPassword() {
         return password;
     }
 
     public boolean isActive() {
-        return isActive;
+        return active;
     }
 
     public void updatePersonalData(String firstName, String lastName) {
@@ -54,16 +79,24 @@ public class User {
     }
 
     public void activate() {
-        this.isActive = true;
+        this.active = true;
     }
 
     public void deactivate() {
-        this.isActive = false;
+        this.active = false;
     }
 
     private static String requireText(String value, String fieldName) {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException(fieldName + " must not be blank");
+        }
+        return value;
+    }
+
+    private static String requirePassword(String password) {
+        String value = requireText(password, "password");
+        if (value.length() != 10) {
+            throw new IllegalArgumentException("password must contain exactly 10 characters");
         }
         return value;
     }
@@ -74,7 +107,7 @@ public class User {
         private String lastName;
         private String username;
         private String password;
-        private boolean isActive;
+        private boolean active;
 
         public Builder setId(Long id) {
             this.id = id;
@@ -95,24 +128,30 @@ public class User {
             this.username = username;
             return this;
         }
+
         public Builder setPassword(String password) {
             this.password = password;
             return this;
         }
-        public Builder setActive(boolean isActive) {
-            this.isActive = isActive;
+
+        public Builder setActive(boolean active) {
+            this.active = active;
             return this;
         }
+
         public User build() {
             return new User(this);
         }
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        User user = (User) o;
+    public boolean equals(Object other) {
+        if (this == other) {
+            return true;
+        }
+        if (!(other instanceof User user)) {
+            return false;
+        }
         return id != null && id.equals(user.id);
     }
 
@@ -128,7 +167,7 @@ public class User {
                 ", firstName='" + firstName + '\'' +
                 ", lastName='" + lastName + '\'' +
                 ", username='" + username + '\'' +
-                ", isActive=" + isActive +
+                ", active=" + active +
                 '}';
     }
 }
