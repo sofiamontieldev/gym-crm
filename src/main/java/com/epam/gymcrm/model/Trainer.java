@@ -109,6 +109,10 @@ public class Trainer {
         trainees.add(trainee);
     }
 
+    void removeTraineeInternal(Trainee trainee) {
+        trainees.remove(trainee);
+    }
+
     void addTrainingInternal(Training training) {
         trainings.add(training);
     }

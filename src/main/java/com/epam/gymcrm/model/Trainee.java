@@ -15,8 +15,10 @@ import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashSet;
+import java.util.Objects;
 import java.util.Set;
 
 @Entity
@@ -124,6 +126,26 @@ public class Trainee {
         }
         if (trainers.add(trainer)) {
             trainer.addTraineeInternal(this);
+        }
+    }
+
+    public void replaceTrainers(Collection<Trainer> newTrainers) {
+        Objects.requireNonNull(newTrainers, "trainers must not be null");
+        Set<Trainer> replacements = new LinkedHashSet<>(newTrainers);
+        if (replacements.contains(null)) {
+            throw new IllegalArgumentException("trainers must not contain null");
+        }
+
+        Set<Trainer> removedTrainers = new LinkedHashSet<>(trainers);
+        removedTrainers.removeAll(replacements);
+
+        for (Trainer trainer : removedTrainers) {
+            trainers.remove(trainer);
+            trainer.removeTraineeInternal(this);
+        }
+
+        for (Trainer trainer : replacements) {
+            assignTrainer(trainer);
         }
     }
 
