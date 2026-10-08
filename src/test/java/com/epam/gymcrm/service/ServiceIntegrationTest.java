@@ -113,6 +113,31 @@ class ServiceIntegrationTest {
     }
 
     @Test
+    void rollsBackTrainerUpdateWhenTransactionIsMarkedForRollback() {
+        Trainer trainer = facade.createTrainer("Santiago", "Martinez", "FITNESS");
+        String username = trainer.getUsername();
+        String password = trainer.getPassword();
+
+        TransactionTemplate transactions = new TransactionTemplate(transactionManager);
+        transactions.executeWithoutResult(status -> {
+            Trainer updated = facade.updateTrainer(
+                    username,
+                    password,
+                    "Santiago",
+                    "Restrepo",
+                    "YOGA");
+
+            assertEquals("Restrepo", updated.getLastName());
+            assertEquals("YOGA", updated.getSpecialization().getName());
+            status.setRollbackOnly();
+        });
+
+        Trainer persisted = facade.selectTrainer(username, password);
+        assertEquals("Martinez", persisted.getLastName());
+        assertEquals("FITNESS", persisted.getSpecialization().getName());
+    }
+
+    @Test
     void hardDeletesTraineeDataAndPreservesTrainer() {
         Trainee trainee = facade.createTrainee(
                 "Daniela",

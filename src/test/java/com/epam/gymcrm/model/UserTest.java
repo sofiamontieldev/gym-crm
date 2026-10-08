@@ -52,9 +52,9 @@ class UserTest {
     private static User createUser() {
         return new User.Builder()
                 .setId(1L)
-                .setFirstName("Pepito")
+                .setFirstName("Juan")
                 .setLastName("Perez")
-                .setUsername("Pepito.Perez")
+                .setUsername("Juan.Perez")
                 .setPassword("Abc1234567")
                 .setActive(true)
                 .build();

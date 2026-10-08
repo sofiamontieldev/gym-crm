@@ -120,7 +120,7 @@ class HibernatePersistenceTest {
         Trainee trainee = new Trainee(
                 user("Luis", "Vega", "Luis.Vega"),
                 LocalDate.of(1990, 2, 3),
-                "North Avenue 20");
+                "Laureles");
 
         trainee.assignTrainer(trainer);
         trainee.assignTrainer(trainer);
