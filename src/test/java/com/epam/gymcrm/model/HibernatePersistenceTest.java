@@ -25,7 +25,7 @@ class HibernatePersistenceTest {
     @Test
     void savesAndLoadsUser() {
         Session session = sessionFactory.getCurrentSession();
-        User user = user("Alice", "Stone", "Alice.Stone");
+        User user = user("Alicia", "Torres", "Alicia.Torres");
 
         session.persist(user);
         session.flush();
@@ -34,8 +34,8 @@ class HibernatePersistenceTest {
 
         User saved = session.find(User.class, id);
         assertNotNull(saved);
-        assertEquals("Alice.Stone", saved.getUsername());
-        assertEquals("Alice", saved.getFirstName());
+        assertEquals("Alicia.Torres", saved.getUsername());
+        assertEquals("Alicia", saved.getFirstName());
     }
 
     @Test
@@ -61,8 +61,7 @@ class HibernatePersistenceTest {
     @Test
     void savesTrainerWithUserAndTrainingType() {
         Session session = sessionFactory.getCurrentSession();
-        TrainingType yoga = new TrainingType("YOGA");
-        session.persist(yoga);
+        TrainingType yoga = trainingType(session, "YOGA");
         Trainer trainer = new Trainer(
                 user("Mario", "Ruiz", "Mario.Ruiz"),
                 yoga);
@@ -80,8 +79,7 @@ class HibernatePersistenceTest {
     @Test
     void savesTrainingWithAllForeignKeys() {
         Session session = sessionFactory.getCurrentSession();
-        TrainingType fitness = new TrainingType("FITNESS");
-        session.persist(fitness);
+        TrainingType fitness = trainingType(session, "FITNESS");
 
         Trainee trainee = new Trainee(
                 user("Ana", "Lopez", "Ana.Lopez"),
@@ -115,8 +113,7 @@ class HibernatePersistenceTest {
     @Test
     void savesTraineeTrainerAssignmentOnlyOnce() {
         Session session = sessionFactory.getCurrentSession();
-        TrainingType resistance = new TrainingType("RESISTANCE");
-        session.persist(resistance);
+        TrainingType resistance = trainingType(session, "RESISTANCE");
         Trainer trainer = new Trainer(
                 user("Diana", "Mora", "Diana.Mora"),
                 resistance);
@@ -146,5 +143,13 @@ class HibernatePersistenceTest {
                 .setPassword("Abc1234567")
                 .setActive(true)
                 .build();
+    }
+
+    private static TrainingType trainingType(Session session, String name) {
+        return session.createSelectionQuery(
+                        "from TrainingType trainingType where trainingType.name = :name",
+                        TrainingType.class)
+                .setParameter("name", name)
+                .getSingleResult();
     }
 }

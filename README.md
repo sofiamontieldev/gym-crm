@@ -47,6 +47,8 @@ hibernate.hbm2ddl.auto=create-drop
 
 The database exists while the application context is active and is discarded when the process ends. Hibernate is the only source of application data; the previous CSV and map storage are not used.
 
+At startup, the application transactionally inserts the five fixed training types that are not already present. This initialization is idempotent and does not create demo users, trainees, trainers or trainings.
+
 ## Architecture
 
 ```text
@@ -75,7 +77,7 @@ The persistent model uses composition instead of inheritance:
 - Training duration must be greater than zero.
 - Training types are persistent fixed values: `FITNESS`, `YOGA`, `ZUMBA`, `STRETCHING` and `RESISTANCE`.
 
-Automatic seeding, authentication, training filters and complete transactional deletion are planned for the next implementation phases.
+Authentication, training filters and complete transactional deletion are planned for the next implementation phases.
 
 ## Tests
 

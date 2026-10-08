@@ -80,14 +80,14 @@ class TraineeServiceTest {
 
         Trainee updated = traineeService.updateTrainee(
                 10L,
-                "Michael",
-                "Brown",
+                "Miguel",
+                "Castillo",
                 LocalDate.of(1990, 2, 10),
                 "New Address");
 
         assertSame(trainee, updated);
-        assertEquals("Michael", updated.getFirstName());
-        assertEquals("Brown", updated.getLastName());
+        assertEquals("Miguel", updated.getFirstName());
+        assertEquals("Castillo", updated.getLastName());
         assertEquals(LocalDate.of(1990, 2, 10), updated.getDateOfBirth());
         assertEquals("New Address", updated.getAddress());
         assertEquals(username, updated.getUsername());
