@@ -1,5 +1,9 @@
 package com.epam.gymcrm.service;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.epam.gymcrm.dao.TraineeDAO;
 import com.epam.gymcrm.dao.TrainerDAO;
 import com.epam.gymcrm.dao.TrainingDAO;
@@ -11,6 +15,7 @@ import com.epam.gymcrm.model.TrainingType;
 import com.epam.gymcrm.model.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -119,12 +124,15 @@ class TrainingServiceTest {
     }
 
     @Test
-    void rejectsInvalidDateRangeAndMissingParticipant() {
+    void rejectsInvalidDateRangeMissingParticipantAndUnknownTrainingType() {
         Trainee trainee = trainee();
+        Trainer trainer = trainer();
         when(authenticationService.authenticate("Valentina.Rojas", "Abc1234567"))
                 .thenReturn(trainee.getUser());
         when(traineeDAO.findByUsername("Valentina.Rojas")).thenReturn(Optional.of(trainee));
         when(traineeDAO.findByUsername("Persona.Inexistente")).thenReturn(Optional.empty());
+        when(trainerDAO.findByUsername("Andres.Gomez")).thenReturn(Optional.of(trainer));
+        when(trainingTypeDAO.findByName("UNKNOWN")).thenReturn(Optional.empty());
 
         assertThrows(
                 IllegalArgumentException.class,
@@ -147,6 +155,32 @@ class TrainingServiceTest {
                         "FITNESS",
                         LocalDate.of(2026, 10, 5),
                         60));
+
+        Logger logger = (Logger) LoggerFactory.getLogger(TrainingService.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> trainingService.createTraining(
+                            "Valentina.Rojas",
+                            "Abc1234567",
+                            "Valentina.Rojas",
+                            "Andres.Gomez",
+                            "Morning Fitness",
+                            "UNKNOWN",
+                            LocalDate.of(2026, 10, 5),
+                            60));
+        } finally {
+            logger.detachAppender(appender);
+        }
+
+        assertEquals(1, appender.list.size());
+        assertEquals(Level.WARN, appender.list.getFirst().getLevel());
+        assertEquals(
+                "Training type not found: UNKNOWN",
+                appender.list.getFirst().getFormattedMessage());
     }
 
     private static Trainee trainee() {

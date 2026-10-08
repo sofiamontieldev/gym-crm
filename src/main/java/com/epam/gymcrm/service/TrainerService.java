@@ -123,7 +123,9 @@ public class TrainerService {
 
     private TrainingType findTrainingType(String name) {
         return trainingTypeDAO.findByName(name)
-                .orElseThrow(() -> new IllegalArgumentException(
-                        "Training type not found: " + name));
+                .orElseThrow(() -> {
+                    log.warn("Training type not found: {}", name);
+                    return new IllegalArgumentException("Training type not found: " + name);
+                });
     }
 }

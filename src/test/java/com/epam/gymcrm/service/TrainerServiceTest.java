@@ -1,5 +1,9 @@
 package com.epam.gymcrm.service;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.epam.gymcrm.dao.TrainerDAO;
 import com.epam.gymcrm.dao.TrainingTypeDAO;
 import com.epam.gymcrm.model.Trainer;
@@ -7,6 +11,7 @@ import com.epam.gymcrm.model.TrainingType;
 import com.epam.gymcrm.model.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 import java.util.Optional;
 
@@ -103,9 +108,21 @@ class TrainerServiceTest {
         trainerService.activateTrainer("Andres.Gomez", "Abc1234567");
         assertTrue(trainer.isActive());
 
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> trainerService.createTrainer("Camila", "Restrepo", "UNKNOWN"));
+        Logger logger = (Logger) LoggerFactory.getLogger(TrainerService.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> trainerService.createTrainer("Camila", "Restrepo", "UNKNOWN"));
+        } finally {
+            logger.detachAppender(appender);
+        }
+
+        assertEquals(1, appender.list.size());
+        assertEquals(Level.WARN, appender.list.getFirst().getLevel());
+        assertTrue(appender.list.getFirst().getFormattedMessage().contains("UNKNOWN"));
     }
 
     private static Trainer trainer(TrainingType specialization) {

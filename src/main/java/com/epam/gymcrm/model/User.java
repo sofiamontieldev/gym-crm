@@ -6,12 +6,16 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Objects;
 
 @Entity
 @Table(name = "users")
 public class User {
+
+    private static final Logger log = LoggerFactory.getLogger(User.class);
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -84,6 +88,7 @@ public class User {
 
     public void activate() {
         if (active) {
+            log.warn("Invalid state transition for username {}: user is already active", username);
             throw new IllegalStateException("user is already active");
         }
         this.active = true;
@@ -91,6 +96,7 @@ public class User {
 
     public void deactivate() {
         if (!active) {
+            log.warn("Invalid state transition for username {}: user is already inactive", username);
             throw new IllegalStateException("user is already inactive");
         }
         this.active = false;
