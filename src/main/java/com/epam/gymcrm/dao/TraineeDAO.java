@@ -51,6 +51,20 @@ public class TraineeDAO {
                 .uniqueResultOptional();
     }
 
+    public Optional<Trainee> findProfileByUsername(String username) {
+        return sessionFactory.getCurrentSession()
+                .createSelectionQuery(
+                        "select distinct trainee from Trainee trainee " +
+                                "join fetch trainee.user user " +
+                                "left join fetch trainee.trainers trainer " +
+                                "left join fetch trainer.user " +
+                                "left join fetch trainer.specialization " +
+                                "where user.username = :username",
+                        Trainee.class)
+                .setParameter("username", username)
+                .uniqueResultOptional();
+    }
+
     public List<Trainee> findAll() {
         return sessionFactory.getCurrentSession()
                 .createSelectionQuery(
@@ -63,6 +77,11 @@ public class TraineeDAO {
 
     public void deleteById(Long id) {
         findById(id).ifPresent(sessionFactory.getCurrentSession()::remove);
+    }
+
+    public void delete(Trainee trainee) {
+        Objects.requireNonNull(trainee, "trainee must not be null");
+        sessionFactory.getCurrentSession().remove(trainee);
     }
 
     public void replaceTrainers(Trainee trainee, Collection<Trainer> trainers) {

@@ -1,5 +1,6 @@
 package com.epam.gymcrm.service;
 
+import com.epam.gymcrm.dao.UserDAO;
 import org.springframework.stereotype.Component;
 
 import java.util.HashSet;
@@ -8,32 +9,22 @@ import java.util.Set;
 @Component
 public class UsernameGenerator {
 
-    private final Set<String> assignedUsernames = new HashSet<>();
+    private final UserDAO userDAO;
+    private final Set<String> reservedUsernames = new HashSet<>();
 
-    public synchronized String generate(String firstName, String lastName) {
-        return generateUniqueUsername(firstName, lastName, assignedUsernames);
+    public UsernameGenerator(UserDAO userDAO) {
+        this.userDAO = userDAO;
     }
 
-    private String generateUniqueUsername(
-            String firstName,
-            String lastName,
-            Set<String> existingUsernames) {
-
+    public synchronized String generate(String firstName, String lastName) {
         String baseUsername = firstName + "." + lastName;
-        if (!existingUsernames.contains(baseUsername)) {
-            assignedUsernames.add(baseUsername);
-            return baseUsername;
+        String candidate = baseUsername;
+        int suffix = 1;
+        while (userDAO.existsByUsername(candidate) || reservedUsernames.contains(candidate)) {
+            candidate = baseUsername + suffix++;
         }
 
-        int suffix = 1;
-        String candidate;
-
-        do {
-            candidate = baseUsername + suffix;
-            suffix++;
-        } while (existingUsernames.contains(candidate));
-
-        assignedUsernames.add(candidate);
+        reservedUsernames.add(candidate);
         return candidate;
     }
 }

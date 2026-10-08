@@ -1,18 +1,16 @@
 package com.epam.gymcrm.facade;
 
+import com.epam.gymcrm.model.Trainee;
+import com.epam.gymcrm.model.Trainer;
+import com.epam.gymcrm.model.Training;
 import com.epam.gymcrm.service.TraineeService;
 import com.epam.gymcrm.service.TrainerService;
 import com.epam.gymcrm.service.TrainingService;
 import org.springframework.stereotype.Component;
 
-import com.epam.gymcrm.model.Trainee;
-import com.epam.gymcrm.model.Trainer;
-import com.epam.gymcrm.model.Training;
-import com.epam.gymcrm.model.TrainingType;
-
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
-import java.util.Optional;
 
 @Component
 public class GymCrmFacade {
@@ -40,75 +38,163 @@ public class GymCrmFacade {
         return traineeService.createTrainee(firstName, lastName, dateOfBirth, address);
     }
 
+    public Trainer createTrainer(
+            String firstName,
+            String lastName,
+            String specializationName) {
+
+        return trainerService.createTrainer(firstName, lastName, specializationName);
+    }
+
+    public Trainee authenticateTrainee(String username, String password) {
+        return traineeService.authenticateTrainee(username, password);
+    }
+
+    public Trainer authenticateTrainer(String username, String password) {
+        return trainerService.authenticateTrainer(username, password);
+    }
+
+    public Trainee selectTrainee(String username, String password) {
+        return traineeService.selectTrainee(username, password);
+    }
+
+    public Trainer selectTrainer(String username, String password) {
+        return trainerService.selectTrainer(username, password);
+    }
+
+    public void changeTraineePassword(
+            String username,
+            String currentPassword,
+            String newPassword) {
+
+        traineeService.changeTraineePassword(username, currentPassword, newPassword);
+    }
+
+    public void changeTrainerPassword(
+            String username,
+            String currentPassword,
+            String newPassword) {
+
+        trainerService.changeTrainerPassword(username, currentPassword, newPassword);
+    }
+
     public Trainee updateTrainee(
-            Long id,
+            String username,
+            String password,
             String firstName,
             String lastName,
             LocalDate dateOfBirth,
             String address) {
 
-        return traineeService.updateTrainee(id, firstName, lastName, dateOfBirth, address);
-    }
-
-    public void deleteTrainee(Long id) {
-        traineeService.deleteTrainee(id);
-    }
-
-    public Optional<Trainee> selectTrainee(Long id) {
-        return traineeService.selectTrainee(id);
-    }
-
-    public List<Trainee> selectAllTrainees() {
-        return traineeService.selectAllTrainees();
-    }
-
-    public Trainer createTrainer(
-            String firstName,
-            String lastName,
-            TrainingType specialization) {
-
-        return trainerService.createTrainer(firstName, lastName, specialization);
+        return traineeService.updateTrainee(
+                username,
+                password,
+                firstName,
+                lastName,
+                dateOfBirth,
+                address);
     }
 
     public Trainer updateTrainer(
-            Long id,
+            String username,
+            String password,
             String firstName,
             String lastName,
-            TrainingType specialization) {
+            String specializationName) {
 
-        return trainerService.updateTrainer(id, firstName, lastName, specialization);
+        return trainerService.updateTrainer(
+                username,
+                password,
+                firstName,
+                lastName,
+                specializationName);
     }
 
-    public Optional<Trainer> selectTrainer(Long id) {
-        return trainerService.selectTrainer(id);
+    public void activateTrainee(String username, String password) {
+        traineeService.activateTrainee(username, password);
     }
 
-    public List<Trainer> selectAllTrainers() {
-        return trainerService.selectAllTrainers();
+    public void deactivateTrainee(String username, String password) {
+        traineeService.deactivateTrainee(username, password);
+    }
+
+    public void activateTrainer(String username, String password) {
+        trainerService.activateTrainer(username, password);
+    }
+
+    public void deactivateTrainer(String username, String password) {
+        trainerService.deactivateTrainer(username, password);
+    }
+
+    public void deleteTrainee(String username, String password) {
+        traineeService.deleteTrainee(username, password);
     }
 
     public Training createTraining(
-            Long traineeId,
-            Long trainerId,
+            String authUsername,
+            String authPassword,
+            String traineeUsername,
+            String trainerUsername,
             String trainingName,
-            TrainingType trainingType,
+            String trainingTypeName,
             LocalDate trainingDate,
             int trainingDuration) {
 
         return trainingService.createTraining(
-                traineeId,
-                trainerId,
+                authUsername,
+                authPassword,
+                traineeUsername,
+                trainerUsername,
                 trainingName,
-                trainingType,
+                trainingTypeName,
                 trainingDate,
                 trainingDuration);
     }
 
-    public Optional<Training> selectTraining(Long id) {
-        return trainingService.selectTraining(id);
+    public List<Training> selectTraineeTrainings(
+            String traineeUsername,
+            String password,
+            LocalDate fromDate,
+            LocalDate toDate,
+            String trainerUsername,
+            String trainingTypeName) {
+
+        return trainingService.selectTraineeTrainings(
+                traineeUsername,
+                password,
+                fromDate,
+                toDate,
+                trainerUsername,
+                trainingTypeName);
     }
 
-    public List<Training> selectAllTrainings() {
-        return trainingService.selectAllTrainings();
+    public List<Training> selectTrainerTrainings(
+            String trainerUsername,
+            String password,
+            LocalDate fromDate,
+            LocalDate toDate,
+            String traineeUsername) {
+
+        return trainingService.selectTrainerTrainings(
+                trainerUsername,
+                password,
+                fromDate,
+                toDate,
+                traineeUsername);
+    }
+
+    public List<Trainer> selectActiveUnassignedTrainers(
+            String traineeUsername,
+            String password) {
+
+        return traineeService.selectActiveUnassignedTrainers(traineeUsername, password);
+    }
+
+    public void replaceTrainers(
+            String traineeUsername,
+            String password,
+            Collection<String> trainerUsernames) {
+
+        traineeService.replaceTrainers(traineeUsername, password, trainerUsernames);
     }
 }

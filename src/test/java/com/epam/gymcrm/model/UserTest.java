@@ -23,11 +23,23 @@ class UserTest {
     void shouldActivateAndDeactivateUser() {
         User user = createUser();
 
+        assertThrows(IllegalStateException.class, user::activate);
         user.deactivate();
         assertFalse(user.isActive());
+        assertThrows(IllegalStateException.class, user::deactivate);
 
         user.activate();
         assertTrue(user.isActive());
+    }
+
+    @Test
+    void shouldChangePasswordOnlyWhenItHasTenCharacters() {
+        User user = createUser();
+
+        user.changePassword("NewPass123");
+
+        assertEquals("NewPass123", user.getPassword());
+        assertThrows(IllegalArgumentException.class, () -> user.changePassword("short"));
     }
 
     @Test

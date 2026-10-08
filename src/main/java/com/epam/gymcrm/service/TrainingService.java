@@ -1,8 +1,9 @@
 package com.epam.gymcrm.service;
 
-import com.epam.gymcrm.dao.TrainingDAO;
 import com.epam.gymcrm.dao.TraineeDAO;
 import com.epam.gymcrm.dao.TrainerDAO;
+import com.epam.gymcrm.dao.TrainingDAO;
+import com.epam.gymcrm.dao.TrainingTypeDAO;
 import com.epam.gymcrm.model.Trainee;
 import com.epam.gymcrm.model.Trainer;
 import com.epam.gymcrm.model.Training;
@@ -14,7 +15,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Optional;
 
 @Service
 public class TrainingService {
@@ -24,31 +24,38 @@ public class TrainingService {
     private final TrainingDAO trainingDAO;
     private final TraineeDAO traineeDAO;
     private final TrainerDAO trainerDAO;
+    private final TrainingTypeDAO trainingTypeDAO;
+    private final AuthenticationService authenticationService;
 
     public TrainingService(
             TrainingDAO trainingDAO,
             TraineeDAO traineeDAO,
-            TrainerDAO trainerDAO) {
+            TrainerDAO trainerDAO,
+            TrainingTypeDAO trainingTypeDAO,
+            AuthenticationService authenticationService) {
+
         this.trainingDAO = trainingDAO;
         this.traineeDAO = traineeDAO;
         this.trainerDAO = trainerDAO;
+        this.trainingTypeDAO = trainingTypeDAO;
+        this.authenticationService = authenticationService;
     }
 
     @Transactional
     public Training createTraining(
-            Long traineeId,
-            Long trainerId,
+            String authUsername,
+            String authPassword,
+            String traineeUsername,
+            String trainerUsername,
             String trainingName,
-            TrainingType trainingType,
+            String trainingTypeName,
             LocalDate trainingDate,
             int trainingDuration) {
 
-        Trainee trainee = traineeDAO.findById(traineeId)
-                .orElseThrow(() -> new IllegalArgumentException(
-                        "Trainee not found with id: " + traineeId));
-        Trainer trainer = trainerDAO.findById(trainerId)
-                .orElseThrow(() -> new IllegalArgumentException(
-                        "Trainer not found with id: " + trainerId));
+        authenticationService.authenticate(authUsername, authPassword);
+        Trainee trainee = findTrainee(traineeUsername);
+        Trainer trainer = findTrainer(trainerUsername);
+        TrainingType trainingType = findTrainingType(trainingTypeName);
 
         Training training = new Training(
                 trainee,
@@ -59,17 +66,73 @@ public class TrainingService {
                 trainingDuration);
 
         trainingDAO.save(training);
-        log.info("Training created with id {}", training.getId());
+        log.info(
+                "Training created with id {} for trainee {} and trainer {}",
+                training.getId(),
+                traineeUsername,
+                trainerUsername);
         return training;
     }
 
     @Transactional(readOnly = true)
-    public Optional<Training> selectTraining(Long id) {
-        return trainingDAO.findById(id);
+    public List<Training> selectTraineeTrainings(
+            String traineeUsername,
+            String password,
+            LocalDate fromDate,
+            LocalDate toDate,
+            String trainerUsername,
+            String trainingTypeName) {
+
+        authenticationService.authenticate(traineeUsername, password);
+        findTrainee(traineeUsername);
+        validateDateRange(fromDate, toDate);
+        return trainingDAO.findByTraineeCriteria(
+                traineeUsername,
+                fromDate,
+                toDate,
+                trainerUsername,
+                trainingTypeName);
     }
 
     @Transactional(readOnly = true)
-    public List<Training> selectAllTrainings() {
-        return trainingDAO.findAll();
+    public List<Training> selectTrainerTrainings(
+            String trainerUsername,
+            String password,
+            LocalDate fromDate,
+            LocalDate toDate,
+            String traineeUsername) {
+
+        authenticationService.authenticate(trainerUsername, password);
+        findTrainer(trainerUsername);
+        validateDateRange(fromDate, toDate);
+        return trainingDAO.findByTrainerCriteria(
+                trainerUsername,
+                fromDate,
+                toDate,
+                traineeUsername);
+    }
+
+    private Trainee findTrainee(String username) {
+        return traineeDAO.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Trainee not found: " + username));
+    }
+
+    private Trainer findTrainer(String username) {
+        return trainerDAO.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Trainer not found: " + username));
+    }
+
+    private TrainingType findTrainingType(String name) {
+        return trainingTypeDAO.findByName(name)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Training type not found: " + name));
+    }
+
+    private static void validateDateRange(LocalDate fromDate, LocalDate toDate) {
+        if (fromDate != null && toDate != null && fromDate.isAfter(toDate)) {
+            throw new IllegalArgumentException("fromDate must not be after toDate");
+        }
     }
 }

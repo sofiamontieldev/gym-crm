@@ -78,11 +78,21 @@ public class User {
         this.lastName = requireText(lastName, "lastName");
     }
 
+    public void changePassword(String newPassword) {
+        this.password = requirePassword(newPassword);
+    }
+
     public void activate() {
+        if (active) {
+            throw new IllegalStateException("user is already active");
+        }
         this.active = true;
     }
 
     public void deactivate() {
+        if (!active) {
+            throw new IllegalStateException("user is already inactive");
+        }
         this.active = false;
     }
 

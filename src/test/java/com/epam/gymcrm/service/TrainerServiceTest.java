@@ -1,6 +1,7 @@
 package com.epam.gymcrm.service;
 
 import com.epam.gymcrm.dao.TrainerDAO;
+import com.epam.gymcrm.dao.TrainingTypeDAO;
 import com.epam.gymcrm.model.Trainer;
 import com.epam.gymcrm.model.TrainingType;
 import com.epam.gymcrm.model.User;
@@ -12,6 +13,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -19,63 +21,98 @@ import static org.mockito.Mockito.when;
 class TrainerServiceTest {
 
     private TrainerDAO trainerDAO;
+    private TrainingTypeDAO trainingTypeDAO;
+    private AuthenticationService authenticationService;
+    private PasswordGenerator passwordGenerator;
+    private UsernameGenerator usernameGenerator;
     private TrainerService trainerService;
 
     @BeforeEach
     void setUp() {
         trainerDAO = mock(TrainerDAO.class);
+        trainingTypeDAO = mock(TrainingTypeDAO.class);
+        authenticationService = mock(AuthenticationService.class);
+        passwordGenerator = mock(PasswordGenerator.class);
+        usernameGenerator = mock(UsernameGenerator.class);
         trainerService = new TrainerService(
                 trainerDAO,
-                new PasswordGenerator(),
-                new UsernameGenerator());
+                trainingTypeDAO,
+                authenticationService,
+                passwordGenerator,
+                usernameGenerator);
     }
 
     @Test
-    void shouldCreateTrainerWithSpecialization() {
+    void createsTrainerWithPersistedSpecialization() {
         TrainingType fitness = new TrainingType("FITNESS");
+        when(trainingTypeDAO.findByName("FITNESS")).thenReturn(Optional.of(fitness));
+        when(usernameGenerator.generate("Andres", "Gomez")).thenReturn("Andres.Gomez");
+        when(passwordGenerator.generate()).thenReturn("Abc1234567");
 
-        Trainer trainer = trainerService.createTrainer("Sara", "Martinez", fitness);
+        Trainer trainer = trainerService.createTrainer("Andres", "Gomez", "FITNESS");
 
-        assertEquals("Sara.Martinez", trainer.getUsername());
+        assertEquals("Andres.Gomez", trainer.getUsername());
         assertEquals(10, trainer.getPassword().length());
         assertSame(fitness, trainer.getSpecialization());
         verify(trainerDAO).save(trainer);
     }
 
     @Test
-    void shouldUpdateTrainerWithoutChangingCredentials() {
+    void selectsUpdatesAndChangesPasswordForAuthenticatedTrainer() {
         TrainingType fitness = new TrainingType("FITNESS");
         TrainingType yoga = new TrainingType("YOGA");
         Trainer trainer = trainer(fitness);
-        when(trainerDAO.findById(20L)).thenReturn(Optional.of(trainer));
-        String username = trainer.getUsername();
-        String password = trainer.getPassword();
+        when(authenticationService.authenticate("Andres.Gomez", "Abc1234567"))
+                .thenReturn(trainer.getUser());
+        when(trainerDAO.findByUsername("Andres.Gomez")).thenReturn(Optional.of(trainer));
+        when(trainingTypeDAO.findByName("YOGA")).thenReturn(Optional.of(yoga));
 
-        Trainer updated = trainerService.updateTrainer(20L, "Sara", "Gomez", yoga);
+        assertSame(
+                trainer,
+                trainerService.selectTrainer("Andres.Gomez", "Abc1234567"));
 
-        assertSame(trainer, updated);
-        assertEquals("Gomez", updated.getLastName());
+        Trainer updated = trainerService.updateTrainer(
+                "Andres.Gomez",
+                "Abc1234567",
+                "Andres",
+                "Restrepo",
+                "YOGA");
+        trainerService.changeTrainerPassword(
+                "Andres.Gomez",
+                "Abc1234567",
+                "NewPass123");
+
+        assertEquals("Restrepo", updated.getLastName());
+        assertEquals("Andres.Gomez", updated.getUsername());
         assertSame(yoga, updated.getSpecialization());
-        assertEquals(username, updated.getUsername());
-        assertEquals(password, updated.getPassword());
-        verify(trainerDAO).save(trainer);
+        assertEquals("NewPass123", updated.getPassword());
     }
 
     @Test
-    void shouldFailWhenUpdatingUnknownTrainer() {
-        when(trainerDAO.findById(999L)).thenReturn(Optional.empty());
+    void enforcesActivationTransitionsAndRejectsUnknownSpecialization() {
+        Trainer trainer = trainer(new TrainingType("FITNESS"));
+        when(authenticationService.verifyCredentials("Andres.Gomez", "Abc1234567"))
+                .thenReturn(trainer.getUser());
+        when(trainerDAO.findByUsername("Andres.Gomez")).thenReturn(Optional.of(trainer));
+        when(trainingTypeDAO.findByName("UNKNOWN")).thenReturn(Optional.empty());
+
+        trainerService.deactivateTrainer("Andres.Gomez", "Abc1234567");
+        assertThrows(
+                IllegalStateException.class,
+                () -> trainerService.deactivateTrainer("Andres.Gomez", "Abc1234567"));
+        trainerService.activateTrainer("Andres.Gomez", "Abc1234567");
+        assertTrue(trainer.isActive());
 
         assertThrows(
                 IllegalArgumentException.class,
-                () -> trainerService.updateTrainer(
-                        999L, "Sara", "Martinez", new TrainingType("FITNESS")));
+                () -> trainerService.createTrainer("Camila", "Restrepo", "UNKNOWN"));
     }
 
     private static Trainer trainer(TrainingType specialization) {
         User user = new User.Builder()
-                .setFirstName("Sara")
-                .setLastName("Martinez")
-                .setUsername("Sara.Martinez")
+                .setFirstName("Andres")
+                .setLastName("Gomez")
+                .setUsername("Andres.Gomez")
                 .setPassword("Abc1234567")
                 .setActive(true)
                 .build();

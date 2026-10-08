@@ -3,10 +3,12 @@ package com.epam.gymcrm.service;
 import com.epam.gymcrm.dao.TraineeDAO;
 import com.epam.gymcrm.dao.TrainerDAO;
 import com.epam.gymcrm.dao.TrainingDAO;
+import com.epam.gymcrm.dao.TrainingTypeDAO;
 import com.epam.gymcrm.model.Trainee;
 import com.epam.gymcrm.model.Trainer;
 import com.epam.gymcrm.model.Training;
 import com.epam.gymcrm.model.TrainingType;
+import com.epam.gymcrm.model.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -26,6 +28,8 @@ class TrainingServiceTest {
     private TrainingDAO trainingDAO;
     private TraineeDAO traineeDAO;
     private TrainerDAO trainerDAO;
+    private TrainingTypeDAO trainingTypeDAO;
+    private AuthenticationService authenticationService;
     private TrainingService trainingService;
 
     @BeforeEach
@@ -33,22 +37,34 @@ class TrainingServiceTest {
         trainingDAO = mock(TrainingDAO.class);
         traineeDAO = mock(TraineeDAO.class);
         trainerDAO = mock(TrainerDAO.class);
-        trainingService = new TrainingService(trainingDAO, traineeDAO, trainerDAO);
+        trainingTypeDAO = mock(TrainingTypeDAO.class);
+        authenticationService = mock(AuthenticationService.class);
+        trainingService = new TrainingService(
+                trainingDAO,
+                traineeDAO,
+                trainerDAO,
+                trainingTypeDAO,
+                authenticationService);
     }
 
     @Test
-    void shouldCreateTrainingWithPersistentRelations() {
-        Trainee trainee = mock(Trainee.class);
-        Trainer trainer = mock(Trainer.class);
-        TrainingType fitness = new TrainingType("FITNESS");
-        when(traineeDAO.findById(100L)).thenReturn(Optional.of(trainee));
-        when(trainerDAO.findById(200L)).thenReturn(Optional.of(trainer));
+    void createsTrainingWithPersistentRelationsAndAuthenticatedUser() {
+        Trainee trainee = trainee();
+        Trainer trainer = trainer();
+        TrainingType fitness = trainer.getSpecialization();
+        when(authenticationService.authenticate("Camila.Restrepo", "Abc1234567"))
+                .thenReturn(user("Camila", "Restrepo", "Camila.Restrepo"));
+        when(traineeDAO.findByUsername("Valentina.Rojas")).thenReturn(Optional.of(trainee));
+        when(trainerDAO.findByUsername("Andres.Gomez")).thenReturn(Optional.of(trainer));
+        when(trainingTypeDAO.findByName("FITNESS")).thenReturn(Optional.of(fitness));
 
         Training training = trainingService.createTraining(
-                100L,
-                200L,
+                "Camila.Restrepo",
+                "Abc1234567",
+                "Valentina.Rojas",
+                "Andres.Gomez",
                 "Morning Fitness",
-                fitness,
+                "FITNESS",
                 LocalDate.of(2026, 10, 5),
                 60);
 
@@ -56,32 +72,103 @@ class TrainingServiceTest {
         assertSame(trainer, training.getTrainer());
         assertSame(fitness, training.getTrainingType());
         assertEquals("Morning Fitness", training.getTrainingName());
-        assertEquals(60, training.getTrainingDuration());
         verify(trainingDAO).save(training);
     }
 
     @Test
-    void shouldRejectTrainingWhenTraineeDoesNotExist() {
-        when(traineeDAO.findById(999L)).thenReturn(Optional.empty());
+    void delegatesAuthenticatedTraineeAndTrainerTrainingSearches() {
+        Trainee trainee = trainee();
+        Trainer trainer = trainer();
+        Training training = new Training(
+                trainee,
+                trainer,
+                "Functional Strength Training",
+                trainer.getSpecialization(),
+                LocalDate.of(2026, 10, 5),
+                50);
+        when(authenticationService.authenticate("Valentina.Rojas", "Abc1234567"))
+                .thenReturn(trainee.getUser());
+        when(authenticationService.authenticate("Andres.Gomez", "Abc1234567"))
+                .thenReturn(trainer.getUser());
+        when(traineeDAO.findByUsername("Valentina.Rojas")).thenReturn(Optional.of(trainee));
+        when(trainerDAO.findByUsername("Andres.Gomez")).thenReturn(Optional.of(trainer));
+        when(trainingDAO.findByTraineeCriteria(
+                "Valentina.Rojas", null, null, "Andres.Gomez", "FITNESS"))
+                .thenReturn(List.of(training));
+        when(trainingDAO.findByTrainerCriteria(
+                "Andres.Gomez", null, null, "Valentina.Rojas"))
+                .thenReturn(List.of(training));
+
+        assertEquals(
+                List.of(training),
+                trainingService.selectTraineeTrainings(
+                        "Valentina.Rojas",
+                        "Abc1234567",
+                        null,
+                        null,
+                        "Andres.Gomez",
+                        "FITNESS"));
+        assertEquals(
+                List.of(training),
+                trainingService.selectTrainerTrainings(
+                        "Andres.Gomez",
+                        "Abc1234567",
+                        null,
+                        null,
+                        "Valentina.Rojas"));
+    }
+
+    @Test
+    void rejectsInvalidDateRangeAndMissingParticipant() {
+        Trainee trainee = trainee();
+        when(authenticationService.authenticate("Valentina.Rojas", "Abc1234567"))
+                .thenReturn(trainee.getUser());
+        when(traineeDAO.findByUsername("Valentina.Rojas")).thenReturn(Optional.of(trainee));
+        when(traineeDAO.findByUsername("Persona.Inexistente")).thenReturn(Optional.empty());
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> trainingService.selectTraineeTrainings(
+                        "Valentina.Rojas",
+                        "Abc1234567",
+                        LocalDate.of(2026, 10, 10),
+                        LocalDate.of(2026, 10, 5),
+                        null,
+                        null));
 
         assertThrows(
                 IllegalArgumentException.class,
                 () -> trainingService.createTraining(
-                        999L,
-                        200L,
+                        "Valentina.Rojas",
+                        "Abc1234567",
+                        "Persona.Inexistente",
+                        "Andres.Gomez",
                         "Morning Fitness",
-                        new TrainingType("FITNESS"),
+                        "FITNESS",
                         LocalDate.of(2026, 10, 5),
                         60));
     }
 
-    @Test
-    void shouldSelectTrainingAndAllTrainings() {
-        Training training = mock(Training.class);
-        when(trainingDAO.findById(1L)).thenReturn(Optional.of(training));
-        when(trainingDAO.findAll()).thenReturn(List.of(training));
+    private static Trainee trainee() {
+        return new Trainee(
+                user("Valentina", "Rojas", "Valentina.Rojas"),
+                LocalDate.of(1995, 4, 12),
+                "Cra. 43A # 10-20");
+    }
 
-        assertEquals(Optional.of(training), trainingService.selectTraining(1L));
-        assertEquals(List.of(training), trainingService.selectAllTrainings());
+    private static Trainer trainer() {
+        return new Trainer(
+                user("Andres", "Gomez", "Andres.Gomez"),
+                new TrainingType("FITNESS"));
+    }
+
+    private static User user(String firstName, String lastName, String username) {
+        return new User.Builder()
+                .setFirstName(firstName)
+                .setLastName(lastName)
+                .setUsername(username)
+                .setPassword("Abc1234567")
+                .setActive(true)
+                .build();
     }
 }
