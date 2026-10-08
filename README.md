@@ -6,7 +6,7 @@ Spring Core and Hibernate module for managing trainees, trainers and trainings w
 
 - JDK 21
 - Maven
-- IntelliJ IDEA or another Java IDE
+- Any Java IDE with Maven support (optional)
 
 Verify the tools with:
 
@@ -15,11 +15,11 @@ java -version
 mvn -version
 ```
 
-## Quick start with IntelliJ IDEA
+## Quick start
 
 1. Extract the `.rar` or `.zip` archive.
-2. Open the extracted folder in IntelliJ IDEA using `pom.xml`.
-3. Select JDK 21 as the project SDK and Maven JDK.
+2. Open the extracted folder in your preferred IDE as a Maven project using `pom.xml`.
+3. Configure JDK 21 for both the project and Maven.
 4. Open a terminal in the project root and run:
 
 ```bash
@@ -44,23 +44,24 @@ mvn exec:java
 - Active unassigned trainer lookup and trainee-trainer assignment updates.
 - Automatic, idempotent initialization of the five fixed training types.
 
-All operations except registration require valid credentials. Passwords contain exactly 10 characters and are excluded from logs and `toString()` output. They remain plain text only for this academic stage; a production system should use a secure password-hashing algorithm such as Argon2id, bcrypt or scrypt.
+All operations except registration require valid credentials. Passwords contain exactly 10 characters and are excluded from logs and `toString()` output. They remain as plain text only for this academic stage, a production system should use a password-hashing algorithm such as bcrypt.
 
 ## Architecture and persistence
 
 ```text
 GymCrmFacade
-      |
-      +--> TraineeService --+
-      +--> TrainerService --+--> Hibernate DAOs --> SessionFactory --> H2
-      +--> TrainingService -+
+      |                           
+      ---> TraineeService ----->  -------------------------------------------
+      ---> TrainerService --+--> | Hibernate DAOs --> SessionFactory --> H2  |
+      ---> TrainingService ----> |___________________________________________|
              |
+             v
        AuthenticationService
 ```
 
 Dependencies use constructor injection. Write operations are transactional, while read operations use read-only transactions where appropriate. Hibernate is the only source of application data.
 
-The persistent model uses composition:
+The persistent model uses composition to reduce coupling:
 
 - `Trainee` has one `User`.
 - `Trainer` has one `User` and one `TrainingType` specialization.
@@ -77,7 +78,7 @@ db.password=
 hibernate.hbm2ddl.auto=create-drop
 ```
 
-No external database installation is required. The in-memory database is discarded when the application context closes. At startup, the application inserts `FITNESS`, `YOGA`, `ZUMBA`, `STRETCHING` and `RESISTANCE`; it does not insert demo profiles or trainings.
+No external database installation is required. The in-memory database is discarded when the application context closes. At startup, the application inserts `FITNESS`, `YOGA`, `ZUMBA`, `STRETCHING` and `RESISTANCE`. It doesn't insert demo profiles or trainings.
 
 ## Optional H2 inspection
 
@@ -118,11 +119,21 @@ SELECT * FROM TRAINING_TYPES;
 SELECT * FROM TRAINEE2TRAINER;
 ```
 
-Stop the console and restore the original in-memory URL and `create-drop` setting after the inspection. Files created under `data/` are ignored by Git.
+After finishing the inspection:
+
+1. Stop the H2 console.
+2. Open `src/main/resources/application.properties` and restore the default settings:
+
+```properties
+db.url=jdbc:h2:mem:gymcrm;DB_CLOSE_DELAY=-1
+hibernate.hbm2ddl.auto=create-drop
+```
+
+The next application or test execution will use a new temporary in-memory database again. The `data/` directory is used only for manual inspection and is ignored by Git, so it can be deleted when it is no longer needed.
 
 ## Tests
 
-The suite uses JUnit 5 and Mockito for focused unit tests, plus Spring and H2 integration tests for mappings, DAO queries, initialization, transactions, cascades and trainer preservation. It also verifies that passwords are absent from logs and `toString()` output.
+The suite uses JUnit 5 and Mockito for unit tests, plus Spring and H2 integration tests for mappings, DAO queries, initialization, transactions, cascades and trainer preservation. It also verifies that passwords are absent from logs and `toString()` output.
 
 Run all tests with:
 
