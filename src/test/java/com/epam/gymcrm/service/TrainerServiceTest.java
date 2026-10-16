@@ -12,6 +12,7 @@ import com.epam.gymcrm.model.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.Optional;
 
@@ -31,6 +32,7 @@ class TrainerServiceTest {
     private PasswordGenerator passwordGenerator;
     private UsernameGenerator usernameGenerator;
     private TrainerService trainerService;
+    private PasswordEncoder passwordEncoder;
 
     @BeforeEach
     void setUp() {
@@ -39,12 +41,14 @@ class TrainerServiceTest {
         authenticationService = mock(AuthenticationService.class);
         passwordGenerator = mock(PasswordGenerator.class);
         usernameGenerator = mock(UsernameGenerator.class);
+        passwordEncoder = mock(PasswordEncoder.class);
         trainerService = new TrainerService(
                 trainerDAO,
                 trainingTypeDAO,
                 authenticationService,
                 passwordGenerator,
-                usernameGenerator);
+                usernameGenerator,
+                passwordEncoder);
     }
 
     @Test
@@ -53,11 +57,12 @@ class TrainerServiceTest {
         when(trainingTypeDAO.findByName("FITNESS")).thenReturn(Optional.of(fitness));
         when(usernameGenerator.generate("Andres", "Gomez")).thenReturn("Andres.Gomez");
         when(passwordGenerator.generate()).thenReturn("Abc1234567");
+        when(passwordEncoder.encode("Abc1234567")).thenReturn("bcrypt-hash");
 
         Trainer trainer = trainerService.createTrainer("Andres", "Gomez", "FITNESS");
 
         assertEquals("Andres.Gomez", trainer.getUsername());
-        assertEquals(10, trainer.getPassword().length());
+        assertEquals("bcrypt-hash", trainer.getUser().getPasswordHash());
         assertSame(fitness, trainer.getSpecialization());
         verify(trainerDAO).save(trainer);
     }
@@ -90,7 +95,8 @@ class TrainerServiceTest {
         assertEquals("Restrepo", updated.getLastName());
         assertEquals("Andres.Gomez", updated.getUsername());
         assertSame(yoga, updated.getSpecialization());
-        assertEquals("NewPass123", updated.getPassword());
+        verify(authenticationService).changePassword(
+                "Andres.Gomez", "Abc1234567", "NewPass123");
     }
 
     @Test

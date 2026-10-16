@@ -8,6 +8,7 @@ import com.epam.gymcrm.dao.TraineeDAO;
 import com.epam.gymcrm.dao.TrainerDAO;
 import com.epam.gymcrm.dao.TrainingDAO;
 import com.epam.gymcrm.dao.TrainingTypeDAO;
+import com.epam.gymcrm.exception.ResourceNotFoundException;
 import com.epam.gymcrm.model.Trainee;
 import com.epam.gymcrm.model.Trainer;
 import com.epam.gymcrm.model.Training;
@@ -145,7 +146,7 @@ class TrainingServiceTest {
                         null));
 
         assertThrows(
-                IllegalArgumentException.class,
+                ResourceNotFoundException.class,
                 () -> trainingService.createTraining(
                         "Valentina.Rojas",
                         "Abc1234567",

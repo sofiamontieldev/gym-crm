@@ -45,27 +45,38 @@ class ServiceIntegrationTest {
     @Autowired
     private UserDAO userDAO;
 
+    @Autowired
+    private TraineeService traineeService;
+
+    @Autowired
+    private TrainerService trainerService;
+
     @Test
     void generatesPersistentUsernamesAndReturnsInitializedTraineeProfile() {
-        Trainee trainee = facade.createTrainee(
+        RegistrationResult<Trainee> traineeRegistration = traineeService.registerTrainee(
                 "Valentina",
                 "Rojas",
                 LocalDate.of(1995, 4, 12),
                 "Cra. 43A # 10-20");
-        Trainer repeatedName = facade.createTrainer("Valentina", "Rojas", "FITNESS");
-        Trainer assigned = facade.createTrainer("Andres", "Gomez", "YOGA");
+        Trainee trainee = traineeRegistration.profile();
+        RegistrationResult<Trainer> repeatedRegistration =
+                trainerService.registerTrainer("Valentina", "Rojas", "FITNESS");
+        RegistrationResult<Trainer> assignedRegistration =
+                trainerService.registerTrainer("Andres", "Gomez", "YOGA");
+        Trainer repeatedName = repeatedRegistration.profile();
+        Trainer assigned = assignedRegistration.profile();
 
         assertEquals("Valentina.Rojas", trainee.getUsername());
         assertEquals("Valentina.Rojas1", repeatedName.getUsername());
 
         facade.replaceTrainers(
                 trainee.getUsername(),
-                trainee.getPassword(),
+                traineeRegistration.password(),
                 List.of(assigned.getUsername()));
 
         Trainee profile = facade.selectTrainee(
                 trainee.getUsername(),
-                trainee.getPassword());
+                traineeRegistration.password());
 
         assertEquals(
                 List.of("Andres.Gomez"),
@@ -77,13 +88,14 @@ class ServiceIntegrationTest {
 
     @Test
     void persistsPasswordProfileAndActivationChanges() {
-        Trainee trainee = facade.createTrainee(
+        RegistrationResult<Trainee> registration = traineeService.registerTrainee(
                 "Camila",
                 "Restrepo",
                 LocalDate.of(1994, 8, 6),
                 "Laureles");
+        Trainee trainee = registration.profile();
         String username = trainee.getUsername();
-        String firstPassword = trainee.getPassword();
+        String firstPassword = registration.password();
 
         facade.changeTraineePassword(username, firstPassword, "NewPass123");
         assertThrows(
@@ -114,9 +126,11 @@ class ServiceIntegrationTest {
 
     @Test
     void rollsBackTrainerUpdateWhenTransactionIsMarkedForRollback() {
-        Trainer trainer = facade.createTrainer("Santiago", "Martinez", "FITNESS");
+        RegistrationResult<Trainer> registration =
+                trainerService.registerTrainer("Santiago", "Martinez", "FITNESS");
+        Trainer trainer = registration.profile();
         String username = trainer.getUsername();
-        String password = trainer.getPassword();
+        String password = registration.password();
 
         TransactionTemplate transactions = new TransactionTemplate(transactionManager);
         transactions.executeWithoutResult(status -> {
@@ -139,20 +153,23 @@ class ServiceIntegrationTest {
 
     @Test
     void hardDeletesTraineeDataAndPreservesTrainer() {
-        Trainee trainee = facade.createTrainee(
+        RegistrationResult<Trainee> traineeRegistration = traineeService.registerTrainee(
                 "Daniela",
                 "Ospina",
                 LocalDate.of(1993, 2, 15),
                 "Cl. 10 # 32-15");
-        Trainer trainer = facade.createTrainer("Santiago", "Martinez", "FITNESS");
+        Trainee trainee = traineeRegistration.profile();
+        RegistrationResult<Trainer> trainerRegistration =
+                trainerService.registerTrainer("Santiago", "Martinez", "FITNESS");
+        Trainer trainer = trainerRegistration.profile();
 
         facade.replaceTrainers(
                 trainee.getUsername(),
-                trainee.getPassword(),
+                traineeRegistration.password(),
                 List.of(trainer.getUsername()));
         facade.createTraining(
                 trainer.getUsername(),
-                trainer.getPassword(),
+                trainerRegistration.password(),
                 trainee.getUsername(),
                 trainer.getUsername(),
                 "Functional Strength Training",
@@ -160,7 +177,7 @@ class ServiceIntegrationTest {
                 LocalDate.of(2026, 10, 5),
                 60);
 
-        facade.deleteTrainee(trainee.getUsername(), trainee.getPassword());
+        facade.deleteTrainee(trainee.getUsername(), traineeRegistration.password());
 
         TransactionTemplate transactions = new TransactionTemplate(transactionManager);
         transactions.executeWithoutResult(status -> {

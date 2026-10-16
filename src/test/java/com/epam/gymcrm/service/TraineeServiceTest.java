@@ -12,6 +12,7 @@ import com.epam.gymcrm.model.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -19,7 +20,6 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -36,6 +36,7 @@ class TraineeServiceTest {
     private PasswordGenerator passwordGenerator;
     private UsernameGenerator usernameGenerator;
     private TraineeService traineeService;
+    private PasswordEncoder passwordEncoder;
 
     @BeforeEach
     void setUp() {
@@ -44,18 +45,21 @@ class TraineeServiceTest {
         authenticationService = mock(AuthenticationService.class);
         passwordGenerator = mock(PasswordGenerator.class);
         usernameGenerator = mock(UsernameGenerator.class);
+        passwordEncoder = mock(PasswordEncoder.class);
         traineeService = new TraineeService(
                 traineeDAO,
                 trainerDAO,
                 authenticationService,
                 passwordGenerator,
-                usernameGenerator);
+                usernameGenerator,
+                passwordEncoder);
     }
 
     @Test
     void createsTraineeWithGeneratedCredentials() {
         when(usernameGenerator.generate("Valentina", "Rojas")).thenReturn("Valentina.Rojas");
         when(passwordGenerator.generate()).thenReturn("Abc1234567");
+        when(passwordEncoder.encode("Abc1234567")).thenReturn("bcrypt-hash");
 
         Trainee trainee = traineeService.createTrainee(
                 "Valentina",
@@ -64,7 +68,7 @@ class TraineeServiceTest {
                 "Cra. 43A # 10-20");
 
         assertEquals("Valentina.Rojas", trainee.getUsername());
-        assertEquals(10, trainee.getPassword().length());
+        assertEquals("bcrypt-hash", trainee.getUser().getPasswordHash());
         assertTrue(trainee.isActive());
         verify(traineeDAO).save(trainee);
     }
@@ -96,8 +100,8 @@ class TraineeServiceTest {
             logger.detachAppender(appender);
         }
 
-        assertEquals("NewPass123", trainee.getPassword());
-        assertFalse(appender.list.isEmpty());
+        verify(authenticationService).changePassword(
+                "Valentina.Rojas", "Abc1234567", "NewPass123");
         assertTrue(appender.list.stream()
                 .map(ILoggingEvent::getFormattedMessage)
                 .noneMatch(message -> message.contains("Abc1234567")

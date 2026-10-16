@@ -10,6 +10,7 @@ import com.epam.gymcrm.model.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import java.util.Optional;
 
@@ -29,7 +30,7 @@ class AuthenticationServiceTest {
     @BeforeEach
     void setUp() {
         userDAO = mock(UserDAO.class);
-        authenticationService = new AuthenticationService(userDAO);
+        authenticationService = new AuthenticationService(userDAO, new BCryptPasswordEncoder());
     }
 
     @Test
@@ -96,7 +97,7 @@ class AuthenticationServiceTest {
                 .setFirstName("Valentina")
                 .setLastName("Rojas")
                 .setUsername("Valentina.Rojas")
-                .setPassword("Abc1234567")
+                .setPassword(new BCryptPasswordEncoder().encode("Abc1234567"))
                 .setActive(active)
                 .build();
     }
