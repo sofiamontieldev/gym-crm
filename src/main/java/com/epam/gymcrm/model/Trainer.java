@@ -51,6 +51,7 @@ public class Trainer {
             throw new IllegalArgumentException("specialization must not be null");
         }
         this.user = user;
+        user.assignRole(UserRole.TRAINER);
         this.specialization = specialization;
     }
 
@@ -72,10 +73,6 @@ public class Trainer {
 
     public String getUsername() {
         return user.getUsername();
-    }
-
-    public String getPassword() {
-        return user.getPassword();
     }
 
     public boolean isActive() {

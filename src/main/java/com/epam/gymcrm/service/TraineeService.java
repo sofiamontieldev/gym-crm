@@ -3,13 +3,16 @@ package com.epam.gymcrm.service;
 import com.epam.gymcrm.dao.TraineeDAO;
 import com.epam.gymcrm.dao.TrainerDAO;
 import com.epam.gymcrm.exception.AuthenticationException;
+import com.epam.gymcrm.exception.ResourceNotFoundException;
 import com.epam.gymcrm.model.Trainee;
 import com.epam.gymcrm.model.Trainer;
 import com.epam.gymcrm.model.User;
+import com.epam.gymcrm.model.UserRole;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDate;
 import java.util.Collection;
@@ -28,19 +31,22 @@ public class TraineeService {
     private final AuthenticationService authenticationService;
     private final PasswordGenerator passwordGenerator;
     private final UsernameGenerator usernameGenerator;
+    private final PasswordEncoder passwordEncoder;
 
     public TraineeService(
             TraineeDAO traineeDAO,
             TrainerDAO trainerDAO,
             AuthenticationService authenticationService,
             PasswordGenerator passwordGenerator,
-            UsernameGenerator usernameGenerator) {
+            UsernameGenerator usernameGenerator,
+            PasswordEncoder passwordEncoder) {
 
         this.traineeDAO = traineeDAO;
         this.trainerDAO = trainerDAO;
         this.authenticationService = authenticationService;
         this.passwordGenerator = passwordGenerator;
         this.usernameGenerator = usernameGenerator;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @Transactional
@@ -50,19 +56,31 @@ public class TraineeService {
             LocalDate dateOfBirth,
             String address) {
 
+        return registerTrainee(firstName, lastName, dateOfBirth, address).profile();
+    }
+
+    @Transactional
+    public RegistrationResult<Trainee> registerTrainee(
+            String firstName,
+            String lastName,
+            LocalDate dateOfBirth,
+            String address) {
+
         String username = usernameGenerator.generate(firstName, lastName);
+        String password = passwordGenerator.generate();
         User user = new User.Builder()
                 .setFirstName(firstName)
                 .setLastName(lastName)
                 .setUsername(username)
-                .setPassword(passwordGenerator.generate())
+                .setPassword(passwordEncoder.encode(password))
+                .setRole(UserRole.TRAINEE)
                 .setActive(true)
                 .build();
 
         Trainee trainee = new Trainee(user, dateOfBirth, address);
         traineeDAO.save(trainee);
         log.info("Trainee created with id {} and username {}", trainee.getId(), username);
-        return trainee;
+        return new RegistrationResult<>(trainee, username, password);
     }
 
     @Transactional(readOnly = true)
@@ -77,15 +95,19 @@ public class TraineeService {
                 .orElseThrow(TraineeService::invalidTraineeCredentials);
     }
 
+    @Transactional(readOnly = true)
+    public Trainee selectTrainee(String username) {
+        return traineeDAO.findProfileByUsername(username)
+                .orElseThrow(() -> new ResourceNotFoundException("Trainee not found: " + username));
+    }
+
     @Transactional
     public void changeTraineePassword(
             String username,
             String currentPassword,
             String newPassword) {
 
-        Trainee trainee = requireAuthenticatedTrainee(username, currentPassword);
-        trainee.getUser().changePassword(newPassword);
-        log.info("Trainee password changed for username {}", username);
+        authenticationService.changePassword(username, currentPassword, newPassword);
     }
 
     @Transactional
@@ -101,6 +123,24 @@ public class TraineeService {
         trainee.updatePersonalData(firstName, lastName);
         trainee.setDateOfBirth(dateOfBirth);
         trainee.setAddress(address);
+        log.info("Trainee updated for username {}", username);
+        return trainee;
+    }
+
+    @Transactional
+    public Trainee updateTrainee(
+            String username,
+            String firstName,
+            String lastName,
+            LocalDate dateOfBirth,
+            String address,
+            boolean active) {
+
+        Trainee trainee = selectTrainee(username);
+        trainee.updatePersonalData(firstName, lastName);
+        trainee.setDateOfBirth(dateOfBirth);
+        trainee.setAddress(address);
+        trainee.getUser().setActive(active);
         log.info("Trainee updated for username {}", username);
         return trainee;
     }
@@ -128,10 +168,21 @@ public class TraineeService {
         log.info("Trainee deleted for username {}", username);
     }
 
+    @Transactional
+    public void deleteTrainee(String username) {
+        traineeDAO.delete(findTrainee(username));
+        log.info("Trainee deleted for username {}", username);
+    }
+
     @Transactional(readOnly = true)
     public List<Trainer> selectActiveUnassignedTrainers(String username, String password) {
         Trainee trainee = requireAuthenticatedTrainee(username, password);
         return trainerDAO.findActiveNotAssignedTo(trainee);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Trainer> selectActiveUnassignedTrainers(String username) {
+        return trainerDAO.findActiveNotAssignedTo(findTrainee(username));
     }
 
     @Transactional
@@ -141,6 +192,18 @@ public class TraineeService {
             Collection<String> trainerUsernames) {
 
         Trainee trainee = requireAuthenticatedTrainee(username, password);
+        replaceTrainers(trainee, username, trainerUsernames);
+    }
+
+    @Transactional
+    public void replaceTrainers(String username, Collection<String> trainerUsernames) {
+        replaceTrainers(findTrainee(username), username, trainerUsernames);
+    }
+
+    private void replaceTrainers(
+            Trainee trainee,
+            String username,
+            Collection<String> trainerUsernames) {
         Set<String> requestedUsernames = validateTrainerUsernames(trainerUsernames);
         List<Trainer> trainers = trainerDAO.findAllByUsernames(requestedUsernames);
 
@@ -163,6 +226,11 @@ public class TraineeService {
     private Trainee findTraineeForCredentials(String username) {
         return traineeDAO.findByUsername(username)
                 .orElseThrow(TraineeService::invalidTraineeCredentials);
+    }
+
+    private Trainee findTrainee(String username) {
+        return traineeDAO.findByUsername(username)
+                .orElseThrow(() -> new ResourceNotFoundException("Trainee not found: " + username));
     }
 
     private static AuthenticationException invalidTraineeCredentials() {

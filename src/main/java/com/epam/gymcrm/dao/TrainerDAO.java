@@ -55,6 +55,20 @@ public class TrainerDAO {
                 .uniqueResultOptional();
     }
 
+    public Optional<Trainer> findProfileByUsername(String username) {
+        return sessionFactory.getCurrentSession()
+                .createSelectionQuery(
+                        "select distinct trainer from Trainer trainer " +
+                                "join fetch trainer.user user " +
+                                "join fetch trainer.specialization " +
+                                "left join fetch trainer.trainees trainee " +
+                                "left join fetch trainee.user " +
+                                "where user.username = :username",
+                        Trainer.class)
+                .setParameter("username", username)
+                .uniqueResultOptional();
+    }
+
     public List<Trainer> findAll() {
         return sessionFactory.getCurrentSession()
                 .createSelectionQuery(

@@ -26,6 +26,7 @@ class HibernatePersistenceTest {
     void savesAndLoadsUser() {
         Session session = sessionFactory.getCurrentSession();
         User user = user("Alicia", "Torres", "Alicia.Torres");
+        user.assignRole(UserRole.TRAINEE);
 
         session.persist(user);
         session.flush();

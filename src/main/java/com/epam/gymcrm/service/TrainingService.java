@@ -4,6 +4,7 @@ import com.epam.gymcrm.dao.TraineeDAO;
 import com.epam.gymcrm.dao.TrainerDAO;
 import com.epam.gymcrm.dao.TrainingDAO;
 import com.epam.gymcrm.dao.TrainingTypeDAO;
+import com.epam.gymcrm.exception.ResourceNotFoundException;
 import com.epam.gymcrm.model.Trainee;
 import com.epam.gymcrm.model.Trainer;
 import com.epam.gymcrm.model.Training;
@@ -74,6 +75,29 @@ public class TrainingService {
         return training;
     }
 
+    @Transactional
+    public Training createTraining(
+            String traineeUsername,
+            String trainerUsername,
+            String trainingName,
+            LocalDate trainingDate,
+            int trainingDuration) {
+
+        Trainee trainee = findTrainee(traineeUsername);
+        Trainer trainer = findTrainer(trainerUsername);
+        Training training = new Training(
+                trainee,
+                trainer,
+                trainingName,
+                trainer.getSpecialization(),
+                trainingDate,
+                trainingDuration);
+        trainingDAO.save(training);
+        log.info("Training created with id {} for trainee {} and trainer {}",
+                training.getId(), traineeUsername, trainerUsername);
+        return training;
+    }
+
     @Transactional(readOnly = true)
     public List<Training> selectTraineeTrainings(
             String traineeUsername,
@@ -95,6 +119,20 @@ public class TrainingService {
     }
 
     @Transactional(readOnly = true)
+    public List<Training> selectTraineeTrainings(
+            String traineeUsername,
+            LocalDate fromDate,
+            LocalDate toDate,
+            String trainerName,
+            String trainingTypeName) {
+
+        findTrainee(traineeUsername);
+        validateDateRange(fromDate, toDate);
+        return trainingDAO.findByTraineeCriteria(
+                traineeUsername, fromDate, toDate, trainerName, trainingTypeName);
+    }
+
+    @Transactional(readOnly = true)
     public List<Training> selectTrainerTrainings(
             String trainerUsername,
             String password,
@@ -112,15 +150,28 @@ public class TrainingService {
                 traineeUsername);
     }
 
+    @Transactional(readOnly = true)
+    public List<Training> selectTrainerTrainings(
+            String trainerUsername,
+            LocalDate fromDate,
+            LocalDate toDate,
+            String traineeName) {
+
+        findTrainer(trainerUsername);
+        validateDateRange(fromDate, toDate);
+        return trainingDAO.findByTrainerCriteria(
+                trainerUsername, fromDate, toDate, traineeName);
+    }
+
     private Trainee findTrainee(String username) {
         return traineeDAO.findByUsername(username)
-                .orElseThrow(() -> new IllegalArgumentException(
+                .orElseThrow(() -> new ResourceNotFoundException(
                         "Trainee not found: " + username));
     }
 
     private Trainer findTrainer(String username) {
         return trainerDAO.findByUsername(username)
-                .orElseThrow(() -> new IllegalArgumentException(
+                .orElseThrow(() -> new ResourceNotFoundException(
                         "Trainer not found: " + username));
     }
 

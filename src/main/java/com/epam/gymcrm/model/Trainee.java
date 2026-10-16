@@ -60,6 +60,7 @@ public class Trainee {
             throw new IllegalArgumentException("user must not be null");
         }
         this.user = user;
+        user.assignRole(UserRole.TRAINEE);
         this.dateOfBirth = dateOfBirth;
         this.address = address;
     }
@@ -82,10 +83,6 @@ public class Trainee {
 
     public String getUsername() {
         return user.getUsername();
-    }
-
-    public String getPassword() {
-        return user.getPassword();
     }
 
     public boolean isActive() {

@@ -3,13 +3,16 @@ package com.epam.gymcrm.service;
 import com.epam.gymcrm.dao.TrainerDAO;
 import com.epam.gymcrm.dao.TrainingTypeDAO;
 import com.epam.gymcrm.exception.AuthenticationException;
+import com.epam.gymcrm.exception.ResourceNotFoundException;
 import com.epam.gymcrm.model.Trainer;
 import com.epam.gymcrm.model.TrainingType;
 import com.epam.gymcrm.model.User;
+import com.epam.gymcrm.model.UserRole;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 @Service
 public class TrainerService {
@@ -21,19 +24,22 @@ public class TrainerService {
     private final AuthenticationService authenticationService;
     private final PasswordGenerator passwordGenerator;
     private final UsernameGenerator usernameGenerator;
+    private final PasswordEncoder passwordEncoder;
 
     public TrainerService(
             TrainerDAO trainerDAO,
             TrainingTypeDAO trainingTypeDAO,
             AuthenticationService authenticationService,
             PasswordGenerator passwordGenerator,
-            UsernameGenerator usernameGenerator) {
+            UsernameGenerator usernameGenerator,
+            PasswordEncoder passwordEncoder) {
 
         this.trainerDAO = trainerDAO;
         this.trainingTypeDAO = trainingTypeDAO;
         this.authenticationService = authenticationService;
         this.passwordGenerator = passwordGenerator;
         this.usernameGenerator = usernameGenerator;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @Transactional
@@ -42,20 +48,31 @@ public class TrainerService {
             String lastName,
             String specializationName) {
 
+        return registerTrainer(firstName, lastName, specializationName).profile();
+    }
+
+    @Transactional
+    public RegistrationResult<Trainer> registerTrainer(
+            String firstName,
+            String lastName,
+            String specializationName) {
+
         TrainingType specialization = findTrainingType(specializationName);
         String username = usernameGenerator.generate(firstName, lastName);
+        String password = passwordGenerator.generate();
         User user = new User.Builder()
                 .setFirstName(firstName)
                 .setLastName(lastName)
                 .setUsername(username)
-                .setPassword(passwordGenerator.generate())
+                .setPassword(passwordEncoder.encode(password))
+                .setRole(UserRole.TRAINER)
                 .setActive(true)
                 .build();
 
         Trainer trainer = new Trainer(user, specialization);
         trainerDAO.save(trainer);
         log.info("Trainer created with id {} and username {}", trainer.getId(), username);
-        return trainer;
+        return new RegistrationResult<>(trainer, username, password);
     }
 
     @Transactional(readOnly = true)
@@ -68,15 +85,19 @@ public class TrainerService {
         return requireAuthenticatedTrainer(username, password);
     }
 
+    @Transactional(readOnly = true)
+    public Trainer selectTrainer(String username) {
+        return trainerDAO.findProfileByUsername(username)
+                .orElseThrow(() -> new ResourceNotFoundException("Trainer not found: " + username));
+    }
+
     @Transactional
     public void changeTrainerPassword(
             String username,
             String currentPassword,
             String newPassword) {
 
-        Trainer trainer = requireAuthenticatedTrainer(username, currentPassword);
-        trainer.getUser().changePassword(newPassword);
-        log.info("Trainer password changed for username {}", username);
+        authenticationService.changePassword(username, currentPassword, newPassword);
     }
 
     @Transactional
@@ -90,6 +111,20 @@ public class TrainerService {
         Trainer trainer = requireAuthenticatedTrainer(username, password);
         trainer.updatePersonalData(firstName, lastName);
         trainer.setSpecialization(findTrainingType(specializationName));
+        log.info("Trainer updated for username {}", username);
+        return trainer;
+    }
+
+    @Transactional
+    public Trainer updateTrainer(
+            String username,
+            String firstName,
+            String lastName,
+            boolean active) {
+
+        Trainer trainer = selectTrainer(username);
+        trainer.updatePersonalData(firstName, lastName);
+        trainer.getUser().setActive(active);
         log.info("Trainer updated for username {}", username);
         return trainer;
     }
@@ -119,6 +154,11 @@ public class TrainerService {
         return trainerDAO.findByUsername(username)
                 .orElseThrow(() -> new AuthenticationException(
                         "Authenticated user is not a trainer"));
+    }
+
+    private Trainer findTrainer(String username) {
+        return trainerDAO.findByUsername(username)
+                .orElseThrow(() -> new ResourceNotFoundException("Trainer not found: " + username));
     }
 
     private TrainingType findTrainingType(String name) {

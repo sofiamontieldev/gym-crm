@@ -5,6 +5,8 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,8 +32,12 @@ public class User {
     @Column(nullable = false, unique = true)
     private String username;
 
-    @Column(nullable = false, length = 10)
+    @Column(nullable = false, length = 255)
     private String password;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 16)
+    private UserRole role;
 
     @Column(name = "is_active", nullable = false)
     private boolean active;
@@ -46,6 +52,7 @@ public class User {
         this.lastName = requireText(builder.lastName, "lastName");
         this.username = requireText(builder.username, "username");
         this.password = requirePassword(builder.password);
+        this.role = builder.role;
         this.active = builder.active;
     }
 
@@ -65,12 +72,12 @@ public class User {
         return username;
     }
 
-    /**
-     * Returns the generated password for authentication workflows.
-     * The value is intentionally excluded from logs and toString().
-     */
-    public String getPassword() {
+    public String getPasswordHash() {
         return password;
+    }
+
+    public UserRole getRole() {
+        return role;
     }
 
     public boolean isActive() {
@@ -84,6 +91,18 @@ public class User {
 
     public void changePassword(String newPassword) {
         this.password = requirePassword(newPassword);
+    }
+
+    public void setActive(boolean active) {
+        this.active = active;
+    }
+
+    void assignRole(UserRole role) {
+        Objects.requireNonNull(role, "role must not be null");
+        if (this.role != null && this.role != role) {
+            throw new IllegalStateException("A user cannot have more than one role");
+        }
+        this.role = role;
     }
 
     public void activate() {
@@ -111,9 +130,6 @@ public class User {
 
     private static String requirePassword(String password) {
         String value = requireText(password, "password");
-        if (value.length() != 10) {
-            throw new IllegalArgumentException("password must contain exactly 10 characters");
-        }
         return value;
     }
 
@@ -123,6 +139,7 @@ public class User {
         private String lastName;
         private String username;
         private String password;
+        private UserRole role;
         private boolean active;
 
         public Builder setId(Long id) {
@@ -147,6 +164,11 @@ public class User {
 
         public Builder setPassword(String password) {
             this.password = password;
+            return this;
+        }
+
+        public Builder setRole(UserRole role) {
+            this.role = role;
             return this;
         }
 
@@ -183,6 +205,7 @@ public class User {
                 ", firstName='" + firstName + '\'' +
                 ", lastName='" + lastName + '\'' +
                 ", username='" + username + '\'' +
+                ", role=" + role +
                 ", active=" + active +
                 '}';
     }

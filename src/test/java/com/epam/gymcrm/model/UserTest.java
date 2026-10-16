@@ -52,20 +52,20 @@ class UserTest {
     }
 
     @Test
-    void shouldChangePasswordOnlyWhenItHasTenCharacters() {
+    void shouldChangePasswordHashWhenItIsNotBlank() {
         User user = createUser();
 
         user.changePassword("NewPass123");
 
-        assertEquals("NewPass123", user.getPassword());
-        assertThrows(IllegalArgumentException.class, () -> user.changePassword("short"));
+        assertEquals("NewPass123", user.getPasswordHash());
+        assertThrows(IllegalArgumentException.class, () -> user.changePassword(" "));
     }
 
     @Test
     void shouldNotExposePasswordInToString() {
         User user = createUser();
 
-        assertFalse(user.toString().contains(user.getPassword()));
+        assertFalse(user.toString().contains(user.getPasswordHash()));
     }
 
     private static User createUser() {

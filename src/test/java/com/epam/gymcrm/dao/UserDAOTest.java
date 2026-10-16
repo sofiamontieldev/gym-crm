@@ -2,6 +2,7 @@ package com.epam.gymcrm.dao;
 
 import com.epam.gymcrm.config.AppConfig;
 import com.epam.gymcrm.model.User;
+import com.epam.gymcrm.model.UserRole;
 import org.hibernate.SessionFactory;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,6 +46,7 @@ class UserDAOTest {
                 .setLastName(lastName)
                 .setUsername(username)
                 .setPassword("Abc1234567")
+                .setRole(UserRole.TRAINEE)
                 .setActive(true)
                 .build();
     }
