@@ -5,7 +5,7 @@
 
         <encoder>
             <pattern>
-                %d{yyyy-MM-dd HH:mm:ss} %-5level %logger{36} - %msg%n
+                %d{yyyy-MM-dd HH:mm:ss} %-5level [%X{transactionId:-no-tx}] %logger{36} - %msg%n
             </pattern>
         </encoder>
 
