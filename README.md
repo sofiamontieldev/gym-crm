@@ -1,131 +1,142 @@
 # Gym CRM
 
-Spring Core module for managing trainees, trainers and trainings in an in-memory gym CRM.
+Spring Core and Hibernate module for managing trainees, trainers and trainings with an H2 database.
 
 ## Requirements
 
 - JDK 21
 - Maven
-- IntelliJ IDEA, Visual Studio Code or another Java IDE
+- Any Java IDE with Maven support (optional)
 
-Verify the Java installation:
+Verify the tools with:
 
 ```bash
 java -version
 mvn -version
 ```
 
-The Maven compiler is configured for Java 21.
+## Quick start
 
-## Build and run
-
-Run the tests and compile the project:
+1. Extract the `.rar` or `.zip` archive.
+2. Open the extracted folder in your preferred IDE as a Maven project using `pom.xml`.
+3. Configure JDK 21 for both the project and Maven.
+4. Open a terminal in the project root and run:
 
 ```bash
 mvn clean test
 ```
 
-Run the application:
+This command compiles the project, creates the temporary H2 schema and runs the complete test suite.
+
+Run the application with:
 
 ```bash
 mvn exec:java
 ```
 
-The application starts a Spring `ApplicationContext`. The initial records are loaded from:
+## Implemented functionality
 
-```text
-src/main/resources/initial-data.csv
-```
+- Trainee and trainer registration with generated credentials.
+- Authentication and profile lookup by username.
+- Profile updates, password changes, activation and deactivation.
+- Transactional hard deletion of trainees while preserving trainers.
+- Training creation and filtered training searches.
+- Active unassigned trainer lookup and trainee-trainer assignment updates.
+- Automatic, idempotent initialization of the five fixed training types.
 
-## Initial data
+All operations except registration require valid credentials. Passwords contain exactly 10 characters and are excluded from logs and `toString()` output. They remain as plain text only for this academic stage, a production system should use a password-hashing algorithm such as bcrypt.
 
-The path is configured in:
-
-```text
-src/main/resources/application.properties
-```
-
-Current configuration:
-
-```properties
-gym.crm.initial-data.path=classpath:initial-data.csv
-```
-
-The file uses one record per line. Fields are separated by `;` and use the `name=value` format:
-
-```text
-TRAINEE;id=100;firstName=Alice;lastName=Johnson;password=SeedPass1!;active=true;dateOfBirth=1992-05-10;address=Main Street 1
-TRAINER;id=200;firstName=Bob;lastName=Martinez;password=SeedPass2!;active=true;specialization=FITNESS
-TRAINING;id=300;traineeId=100;trainerId=200;trainingName=Morning Fitness;trainingType=FITNESS;trainingDate=2026-10-05;trainingDuration=60
-```
-
-`InitialDataLoader` reads this file during Spring startup and fills the three independent maps.
-
-## Architecture
+## Architecture and persistence
 
 ```text
 GymCrmFacade
-      |
-      +--> TraineeService --> TraineeDAO --> traineeStorage
-      +--> TrainerService --> TrainerDAO --> trainerStorage
-      +--> TrainingService -> TrainingDAO -> trainingStorage
+      |                           
+      ---> TraineeService ----->  -------------------------------------------
+      ---> TrainerService --+--> | Hibernate DAOs --> SessionFactory --> H2  |
+      ---> TrainingService ----> |___________________________________________|
+             |
+             v
+       AuthenticationService
 ```
 
-The storage is intentionally in memory because this is a Spring Core exercise. There is no database or web layer.
+Dependencies use constructor injection. Write operations are transactional, while read operations use read-only transactions where appropriate. Hibernate is the only source of application data.
 
-## Packages
+The persistent model uses composition to reduce coupling:
 
-```text
-src/main/java/com/epam/gymcrm
-├── config       Spring configuration and storage beans
-├── model        User, Trainee, Trainer, Training and TrainingType
-├── dao          In-memory data access objects
-├── service      Business operations and username/password generators
-├── facade       Facade that delegates to the services
-└── loader       Initial data loader
+- `Trainee` has one `User`.
+- `Trainer` has one `User` and one `TrainingType` specialization.
+- `Training` references a trainee, trainer and training type.
+- `Trainee2Trainer` stores the many-to-many assignments.
+
+The default settings are in `src/main/resources/application.properties`:
+
+```properties
+db.url=jdbc:h2:mem:gymcrm;DB_CLOSE_DELAY=-1
+db.driver=org.h2.Driver
+db.username=sa
+db.password=
+hibernate.hbm2ddl.auto=create-drop
 ```
 
-## Injection decision
+No external database installation is required. The in-memory database is discarded when the application context closes. At startup, the application inserts `FITNESS`, `YOGA`, `ZUMBA`, `STRETCHING` and `RESISTANCE`. It doesn't insert demo profiles or trainings.
 
-The project uses constructor injection for required dependencies:
+## Optional H2 inspection
 
-- DAOs receive their storage map through the constructor.
-- Services receive DAOs and generators through the constructor.
-- The facade receives all services through the constructor.
+The automated tests are the main verification mechanism. To keep the database after a test and inspect its tables manually, temporarily change these two properties:
 
-Constructor injection was selected because it makes dependencies explicit, prevents partially initialized objects and simplifies unit testing. The task mentions setter injection for some dependencies; if the evaluator checks that requirement literally, only those specific dependencies can be adapted to setter injection without changing the rest of the design.
+```properties
+db.url=jdbc:h2:file:./data/gymcrm
+hibernate.hbm2ddl.auto=create
+```
 
-## Username and password rules
+Run one integration scenario, for example:
 
-- Usernames use `FirstName.LastName`.
-- If the username already exists for another trainee or trainer, a numeric suffix is added: `John.Smith1`.
-- New profile passwords contain exactly 10 random characters.
-- Passwords are not written to logs or `toString()` output.
+```powershell
+mvn "-Dtest=ServiceIntegrationTest#generatesPersistentUsernamesAndReturnsInitializedTraineeProfile" test
+```
 
-The exercise stores the generated password in the profile because that is part of the requested model. A production system should store a password hash instead of the raw password.
+Then start the H2 web console:
 
-## Services
+```powershell
+mvn exec:java "-Dexec.mainClass=org.h2.tools.Console" "-Dexec.classpathScope=runtime"
+```
 
-`TraineeService` supports create, update, delete, select by id and select all.
+Use these connection settings:
 
-`TrainerService` supports create, update, select by id and select all.
+- Driver: `org.h2.Driver`
+- JDBC URL: `jdbc:h2:file:./data/gymcrm`
+- User: `sa`
+- Password: leave empty
 
-`TrainingService` supports create, select by id and select all.
+Useful queries:
 
-Missing records are represented with `Optional` for select operations. Update and delete operations throw `IllegalArgumentException` when the requested profile does not exist.
+```sql
+SELECT * FROM USERS;
+SELECT * FROM TRAINEES;
+SELECT * FROM TRAINERS;
+SELECT * FROM TRAININGS;
+SELECT * FROM TRAINING_TYPES;
+SELECT * FROM TRAINEE2TRAINER;
+```
+
+After finishing the inspection:
+
+1. Stop the H2 console.
+2. Open `src/main/resources/application.properties` and restore the default settings:
+
+```properties
+db.url=jdbc:h2:mem:gymcrm;DB_CLOSE_DELAY=-1
+hibernate.hbm2ddl.auto=create-drop
+```
+
+The next application or test execution will use a new temporary in-memory database again. The `data/` directory is used only for manual inspection and is ignored by Git, so it can be deleted when it is no longer needed.
 
 ## Tests
 
-Tests are located under:
+The suite uses JUnit 5 and Mockito for unit tests, plus Spring and H2 integration tests for mappings, DAO queries, initialization, transactions, cascades and trainer preservation. It also verifies that passwords are absent from logs and `toString()` output.
 
-```text
-src/test/java
-```
-
-Run them with:
+Run all tests with:
 
 ```bash
-mvn test
+mvn clean test
 ```
-
-The service and loader tests are the next testing stage of the project implementation.

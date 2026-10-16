@@ -1,5 +1,8 @@
 package com.epam.gymcrm.service;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.epam.gymcrm.dao.TraineeDAO;
 import com.epam.gymcrm.dao.TrainerDAO;
 import com.epam.gymcrm.model.Trainee;
@@ -8,122 +11,208 @@ import com.epam.gymcrm.model.TrainingType;
 import com.epam.gymcrm.model.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 import java.time.LocalDate;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class TraineeServiceTest {
 
-    private Map<Long, Trainee> traineeStorage;
+    private TraineeDAO traineeDAO;
+    private TrainerDAO trainerDAO;
+    private AuthenticationService authenticationService;
+    private PasswordGenerator passwordGenerator;
+    private UsernameGenerator usernameGenerator;
     private TraineeService traineeService;
-    private TrainerService trainerService;
 
     @BeforeEach
     void setUp() {
-        traineeStorage = new HashMap<>();
-        Map<Long, Trainer> trainerStorage = new HashMap<>();
-        UsernameGenerator usernameGenerator = new UsernameGenerator();
-
+        traineeDAO = mock(TraineeDAO.class);
+        trainerDAO = mock(TrainerDAO.class);
+        authenticationService = mock(AuthenticationService.class);
+        passwordGenerator = mock(PasswordGenerator.class);
+        usernameGenerator = mock(UsernameGenerator.class);
         traineeService = new TraineeService(
-                new TraineeDAO(traineeStorage),
-                new PasswordGenerator(),
-                usernameGenerator);
-        trainerService = new TrainerService(
-                new TrainerDAO(trainerStorage),
-                new PasswordGenerator(),
+                traineeDAO,
+                trainerDAO,
+                authenticationService,
+                passwordGenerator,
                 usernameGenerator);
     }
 
     @Test
-    void shouldCreateTraineeWithGeneratedCredentials() {
-        Trainee trainee = traineeService.createTrainee(
-                "Pablo",
-                "Ordoñez",
-                LocalDate.of(1995, 4, 12),
-                "Main Street 123");
+    void createsTraineeWithGeneratedCredentials() {
+        when(usernameGenerator.generate("Valentina", "Rojas")).thenReturn("Valentina.Rojas");
+        when(passwordGenerator.generate()).thenReturn("Abc1234567");
 
-        assertEquals(1L, trainee.getId());
-        assertEquals("Pablo.Ordoñez", trainee.getUsername());
-        assertNotNull(trainee.getPassword());
+        Trainee trainee = traineeService.createTrainee(
+                "Valentina",
+                "Rojas",
+                LocalDate.of(1995, 4, 12),
+                "Cra. 43A # 10-20");
+
+        assertEquals("Valentina.Rojas", trainee.getUsername());
         assertEquals(10, trainee.getPassword().length());
         assertTrue(trainee.isActive());
-        assertSame(trainee, traineeStorage.get(1L));
+        verify(traineeDAO).save(trainee);
     }
 
     @Test
-    void shouldGenerateUniqueUsernameAcrossTraineesAndTrainers() {
-        Trainee trainee = traineeService.createTrainee(
-                "Pablo", "Ordoñez", LocalDate.of(1995, 4, 12), "Address");
-        Trainer trainer = trainerService.createTrainer(
-                "Pablo", "Ordoñez", TrainingType.FITNESS);
+    void selectsProfileAndChangesPasswordWithValidCredentials() {
+        Trainee trainee = trainee();
+        when(authenticationService.authenticate("Valentina.Rojas", "Abc1234567"))
+                .thenReturn(trainee.getUser());
+        when(traineeDAO.findProfileByUsername("Valentina.Rojas"))
+                .thenReturn(Optional.of(trainee));
+        when(traineeDAO.findByUsername("Valentina.Rojas"))
+                .thenReturn(Optional.of(trainee));
 
-        assertEquals("Pablo.Ordoñez", trainee.getUsername());
-        assertEquals("Pablo.Smith1", trainer.getUsername());
+        assertSame(
+                trainee,
+                traineeService.selectTrainee("Valentina.Rojas", "Abc1234567"));
+
+        Logger logger = (Logger) LoggerFactory.getLogger(TraineeService.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            traineeService.changeTraineePassword(
+                    "Valentina.Rojas",
+                    "Abc1234567",
+                    "NewPass123");
+        } finally {
+            logger.detachAppender(appender);
+        }
+
+        assertEquals("NewPass123", trainee.getPassword());
+        assertFalse(appender.list.isEmpty());
+        assertTrue(appender.list.stream()
+                .map(ILoggingEvent::getFormattedMessage)
+                .noneMatch(message -> message.contains("Abc1234567")
+                        || message.contains("NewPass123")));
     }
 
     @Test
-    void shouldUpdateTraineeWithoutChangingCredentials() {
-        Trainee trainee = traineeService.createTrainee(
-                "Pablo", "Ordoñez", LocalDate.of(1995, 4, 12), "Old Address");
-        String username = trainee.getUsername();
-        String password = trainee.getPassword();
+    void updatesProfileAndEnforcesActivationTransitions() {
+        Trainee trainee = trainee();
+        when(authenticationService.authenticate("Valentina.Rojas", "Abc1234567"))
+                .thenReturn(trainee.getUser());
+        when(authenticationService.verifyCredentials("Valentina.Rojas", "Abc1234567"))
+                .thenReturn(trainee.getUser());
+        when(traineeDAO.findByUsername("Valentina.Rojas"))
+                .thenReturn(Optional.of(trainee));
 
         Trainee updated = traineeService.updateTrainee(
-                trainee.getId(),
-                "Michael",
-                "Brown",
-                LocalDate.of(1990, 2, 10),
-                "New Address");
+                "Valentina.Rojas",
+                "Abc1234567",
+                "Valentina",
+                "Montoya",
+                LocalDate.of(1996, 5, 20),
+                "Laureles");
 
         assertSame(trainee, updated);
-        assertEquals("Michael", updated.getFirstName());
-        assertEquals("Brown", updated.getLastName());
-        assertEquals(LocalDate.of(1990, 2, 10), updated.getDateOfBirth());
-        assertEquals("New Address", updated.getAddress());
-        assertEquals(username, updated.getUsername());
-        assertEquals(password, updated.getPassword());
+        assertEquals("Montoya", updated.getLastName());
+        assertEquals("Valentina.Rojas", updated.getUsername());
+        assertEquals("Laureles", updated.getAddress());
+
+        traineeService.deactivateTrainee("Valentina.Rojas", "Abc1234567");
+        assertThrows(
+                IllegalStateException.class,
+                () -> traineeService.deactivateTrainee("Valentina.Rojas", "Abc1234567"));
+        traineeService.activateTrainee("Valentina.Rojas", "Abc1234567");
+        assertTrue(trainee.isActive());
     }
 
     @Test
-    void shouldFailWhenUpdatingUnknownTrainee() {
+    void findsAvailableTrainersAndRejectsInactiveAssignmentsWithoutPartialUpdate() {
+        Trainee trainee = trainee();
+        Trainer active = trainer("Andres", "Gomez", "Andres.Gomez", true);
+        Trainer inactive = trainer("Daniela", "Ospina", "Daniela.Ospina", false);
+        when(authenticationService.authenticate("Valentina.Rojas", "Abc1234567"))
+                .thenReturn(trainee.getUser());
+        when(traineeDAO.findByUsername("Valentina.Rojas"))
+                .thenReturn(Optional.of(trainee));
+        when(trainerDAO.findActiveNotAssignedTo(trainee)).thenReturn(List.of(active));
+        when(trainerDAO.findAllByUsernames(Set.of("Andres.Gomez")))
+                .thenReturn(List.of(active));
+        when(trainerDAO.findAllByUsernames(Set.of("Daniela.Ospina")))
+                .thenReturn(List.of(inactive));
+
+        assertEquals(
+                List.of(active),
+                traineeService.selectActiveUnassignedTrainers(
+                        "Valentina.Rojas",
+                        "Abc1234567"));
+
+        traineeService.replaceTrainers(
+                "Valentina.Rojas",
+                "Abc1234567",
+                List.of("Andres.Gomez", "Andres.Gomez"));
         assertThrows(
                 IllegalArgumentException.class,
-                () -> traineeService.updateTrainee(
-                        999L,
-                        "Pablo",
-                        "Ordoñez",
-                        LocalDate.of(1995, 4, 12),
-                        "Address"));
+                () -> traineeService.replaceTrainers(
+                        "Valentina.Rojas",
+                        "Abc1234567",
+                        List.of("Daniela.Ospina")));
+
+        verify(traineeDAO, times(1)).replaceTrainers(trainee, List.of(active));
     }
 
     @Test
-    void shouldDeleteTrainee() {
-        Trainee trainee = traineeService.createTrainee(
-                "Pablo", "Ordoñez", LocalDate.of(1995, 4, 12), "Address");
+    void deletesAuthenticatedTrainee() {
+        Trainee trainee = trainee();
+        when(authenticationService.authenticate("Valentina.Rojas", "Abc1234567"))
+                .thenReturn(trainee.getUser());
+        when(traineeDAO.findByUsername("Valentina.Rojas"))
+                .thenReturn(Optional.of(trainee));
 
-        traineeService.deleteTrainee(trainee.getId());
+        traineeService.deleteTrainee("Valentina.Rojas", "Abc1234567");
 
-        assertTrue(traineeService.selectTrainee(trainee.getId()).isEmpty());
+        verify(traineeDAO).delete(trainee);
     }
 
-    private static Trainee createTrainee(Long id) {
+    private static Trainee trainee() {
         return new Trainee(
-                new User.Builder()
-                        .setId(id)
-                        .setFirstName("Alicia")
-                        .setLastName("Montoya")
-                        .setUsername("Alicia.Montoya")
-                        .setPassword("FirstPass1")
-                        .setActive(true),
-                LocalDate.of(1992, 10, 24),
-                "Address");
+                user("Valentina", "Rojas", "Valentina.Rojas", true),
+                LocalDate.of(1995, 4, 12),
+                "Cra. 43A # 10-20");
+    }
+
+    private static Trainer trainer(
+            String firstName,
+            String lastName,
+            String username,
+            boolean active) {
+
+        return new Trainer(
+                user(firstName, lastName, username, active),
+                new TrainingType("FITNESS"));
+    }
+
+    private static User user(
+            String firstName,
+            String lastName,
+            String username,
+            boolean active) {
+
+        return new User.Builder()
+                .setFirstName(firstName)
+                .setLastName(lastName)
+                .setUsername(username)
+                .setPassword("Abc1234567")
+                .setActive(active)
+                .build();
     }
 }

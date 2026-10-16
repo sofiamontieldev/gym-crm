@@ -1,15 +1,15 @@
 package com.epam.gymcrm.service;
 
 import com.epam.gymcrm.dao.TrainerDAO;
+import com.epam.gymcrm.dao.TrainingTypeDAO;
+import com.epam.gymcrm.exception.AuthenticationException;
 import com.epam.gymcrm.model.Trainer;
 import com.epam.gymcrm.model.TrainingType;
 import com.epam.gymcrm.model.User;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-
-import java.util.List;
-import java.util.Optional;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class TrainerService {
@@ -17,69 +17,115 @@ public class TrainerService {
     private static final Logger log = LoggerFactory.getLogger(TrainerService.class);
 
     private final TrainerDAO trainerDAO;
+    private final TrainingTypeDAO trainingTypeDAO;
+    private final AuthenticationService authenticationService;
     private final PasswordGenerator passwordGenerator;
     private final UsernameGenerator usernameGenerator;
 
     public TrainerService(
             TrainerDAO trainerDAO,
+            TrainingTypeDAO trainingTypeDAO,
+            AuthenticationService authenticationService,
             PasswordGenerator passwordGenerator,
             UsernameGenerator usernameGenerator) {
 
         this.trainerDAO = trainerDAO;
+        this.trainingTypeDAO = trainingTypeDAO;
+        this.authenticationService = authenticationService;
         this.passwordGenerator = passwordGenerator;
         this.usernameGenerator = usernameGenerator;
     }
 
+    @Transactional
     public Trainer createTrainer(
             String firstName,
             String lastName,
-            TrainingType specialization) {
+            String specializationName) {
 
-        String username = usernameGenerator.generate(
-                firstName,
-                lastName);
+        TrainingType specialization = findTrainingType(specializationName);
+        String username = usernameGenerator.generate(firstName, lastName);
+        User user = new User.Builder()
+                .setFirstName(firstName)
+                .setLastName(lastName)
+                .setUsername(username)
+                .setPassword(passwordGenerator.generate())
+                .setActive(true)
+                .build();
 
-        Trainer trainer = new Trainer(
-                new User.Builder()
-                        .setId(trainerDAO.nextId())
-                        .setFirstName(firstName)
-                        .setLastName(lastName)
-                        .setUsername(username)
-                        .setPassword(passwordGenerator.generate())
-                        .setActive(true),
-                specialization);
-
+        Trainer trainer = new Trainer(user, specialization);
         trainerDAO.save(trainer);
-        log.info("Trainer created with id {} and username {}", trainer.getId(), trainer.getUsername());
+        log.info("Trainer created with id {} and username {}", trainer.getId(), username);
         return trainer;
     }
 
+    @Transactional(readOnly = true)
+    public Trainer authenticateTrainer(String username, String password) {
+        return requireAuthenticatedTrainer(username, password);
+    }
+
+    @Transactional(readOnly = true)
+    public Trainer selectTrainer(String username, String password) {
+        return requireAuthenticatedTrainer(username, password);
+    }
+
+    @Transactional
+    public void changeTrainerPassword(
+            String username,
+            String currentPassword,
+            String newPassword) {
+
+        Trainer trainer = requireAuthenticatedTrainer(username, currentPassword);
+        trainer.getUser().changePassword(newPassword);
+        log.info("Trainer password changed for username {}", username);
+    }
+
+    @Transactional
     public Trainer updateTrainer(
-            Long id,
+            String username,
+            String password,
             String firstName,
             String lastName,
-            TrainingType specialization) {
+            String specializationName) {
 
-        Trainer trainer = findRequired(id);
+        Trainer trainer = requireAuthenticatedTrainer(username, password);
         trainer.updatePersonalData(firstName, lastName);
-        trainer.setSpecialization(specialization);
-        trainerDAO.save(trainer);
-
-        log.info("Trainer updated with id {}", id);
+        trainer.setSpecialization(findTrainingType(specializationName));
+        log.info("Trainer updated for username {}", username);
         return trainer;
     }
 
-    public Optional<Trainer> selectTrainer(Long id) {
-        return trainerDAO.findById(id);
+    @Transactional
+    public void activateTrainer(String username, String password) {
+        authenticationService.verifyCredentials(username, password);
+        Trainer trainer = findTrainerForCredentials(username);
+        trainer.getUser().activate();
+        log.info("Trainer activated for username {}", username);
     }
 
-    public List<Trainer> selectAllTrainers() {
-        return trainerDAO.findAll();
+    @Transactional
+    public void deactivateTrainer(String username, String password) {
+        authenticationService.verifyCredentials(username, password);
+        Trainer trainer = findTrainerForCredentials(username);
+        trainer.getUser().deactivate();
+        log.info("Trainer deactivated for username {}", username);
     }
 
-    private Trainer findRequired(Long id) {
-        return trainerDAO.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException(
-                        "Trainer not found with id: " + id));
+    private Trainer requireAuthenticatedTrainer(String username, String password) {
+        authenticationService.authenticate(username, password);
+        return findTrainerForCredentials(username);
+    }
+
+    private Trainer findTrainerForCredentials(String username) {
+        return trainerDAO.findByUsername(username)
+                .orElseThrow(() -> new AuthenticationException(
+                        "Authenticated user is not a trainer"));
+    }
+
+    private TrainingType findTrainingType(String name) {
+        return trainingTypeDAO.findByName(name)
+                .orElseThrow(() -> {
+                    log.warn("Training type not found: {}", name);
+                    return new IllegalArgumentException("Training type not found: " + name);
+                });
     }
 }

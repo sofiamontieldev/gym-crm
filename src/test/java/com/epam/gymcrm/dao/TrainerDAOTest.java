@@ -1,54 +1,105 @@
 package com.epam.gymcrm.dao;
 
+import com.epam.gymcrm.config.AppConfig;
+import com.epam.gymcrm.model.Trainee;
 import com.epam.gymcrm.model.Trainer;
 import com.epam.gymcrm.model.TrainingType;
 import com.epam.gymcrm.model.User;
-import org.junit.jupiter.api.BeforeEach;
+import org.hibernate.Session;
+import org.hibernate.SessionFactory;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.HashMap;
+import java.time.LocalDate;
 import java.util.List;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@SpringJUnitConfig(AppConfig.class)
+@Transactional
 class TrainerDAOTest {
 
-    private Map<Long, Trainer> storage;
+    @Autowired
+    private SessionFactory sessionFactory;
+
+    @Autowired
     private TrainerDAO trainerDAO;
 
-    @BeforeEach
-    void setUp() {
-        storage = new HashMap<>();
-        trainerDAO = new TrainerDAO(storage);
-    }
+    @Autowired
+    private TrainingTypeDAO trainingTypeDAO;
 
     @Test
-    void shouldSaveAndFindTrainerById() {
-        Trainer trainer = createTrainer(10L);
-
+    void findsTrainerByUsernameAndUsernameCollection() {
+        TrainingType fitness = trainingTypeDAO.findByName("FITNESS").orElseThrow();
+        Trainer trainer = trainer("Andres", "Gomez", "Andres.Gomez", fitness, true);
         trainerDAO.save(trainer);
 
-        assertEquals(java.util.Optional.of(trainer), trainerDAO.findById(10L));
+        assertEquals(
+                "FITNESS",
+                trainerDAO.findByUsername("Andres.Gomez")
+                        .orElseThrow()
+                        .getSpecialization()
+                        .getName());
+        assertEquals(
+                List.of("Andres.Gomez"),
+                trainerDAO.findAllByUsernames(List.of("Andres.Gomez", "Andres.Gomez"))
+                        .stream()
+                        .map(Trainer::getUsername)
+                        .toList());
+        assertTrue(trainerDAO.findAllByUsernames(List.of()).isEmpty());
     }
 
     @Test
-    void shouldGenerateNextIdAfterExistingData() {
-        storage.put(200L, createTrainer(200L));
+    void findsOnlyActiveTrainersNotAssignedToTrainee() {
+        Session session = sessionFactory.getCurrentSession();
+        TrainingType fitness = trainingTypeDAO.findByName("FITNESS").orElseThrow();
+        Trainer assigned = trainer("Andres", "Gomez", "Andres.Gomez", fitness, true);
+        Trainer available = trainer("Camilo", "Restrepo", "Camilo.Restrepo", fitness, true);
+        Trainer inactive = trainer("Daniela", "Ospina", "Daniela.Ospina", fitness, false);
+        Trainee trainee = new Trainee(
+                user("Valentina", "Rojas", "Valentina.Rojas", true),
+                LocalDate.of(1995, 4, 12),
+                "Carrera 7 # 45-12");
 
-        assertEquals(201L, trainerDAO.nextId());
+        session.persist(assigned);
+        session.persist(available);
+        session.persist(inactive);
+        trainee.assignTrainer(assigned);
+        session.persist(trainee);
+        session.flush();
+
+        List<String> usernames = trainerDAO.findActiveNotAssignedTo(trainee).stream()
+                .map(Trainer::getUsername)
+                .toList();
+
+        assertEquals(List.of("Camilo.Restrepo"), usernames);
     }
 
-    private static Trainer createTrainer(Long id) {
-        return new Trainer(
-                new User.Builder()
-                        .setId(id)
-                        .setFirstName("Sara")
-                        .setLastName("Martinez")
-                        .setUsername("Sara.Martinez" + id)
-                        .setPassword("Abc1234567")
-                        .setActive(true),
-                TrainingType.FITNESS);
+    private static Trainer trainer(
+            String firstName,
+            String lastName,
+            String username,
+            TrainingType specialization,
+            boolean active) {
+
+        return new Trainer(user(firstName, lastName, username, active), specialization);
+    }
+
+    private static User user(
+            String firstName,
+            String lastName,
+            String username,
+            boolean active) {
+
+        return new User.Builder()
+                .setFirstName(firstName)
+                .setLastName(lastName)
+                .setUsername(username)
+                .setPassword("Abc1234567")
+                .setActive(active)
+                .build();
     }
 }

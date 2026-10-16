@@ -1,46 +1,60 @@
 package com.epam.gymcrm.config;
 
 import com.epam.gymcrm.facade.GymCrmFacade;
-import com.epam.gymcrm.model.Trainee;
-import com.epam.gymcrm.model.Trainer;
-import com.epam.gymcrm.model.Training;
+import org.hibernate.SessionFactory;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
+import org.springframework.transaction.PlatformTransactionManager;
 
-import java.util.Map;
+import javax.sql.DataSource;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 @SpringJUnitConfig(AppConfig.class)
-public class SpringContextTest {
+class SpringContextTest {
 
     @Autowired
     private GymCrmFacade facade;
 
     @Autowired
-    @Qualifier("traineeStorage")
-    private Map<Long, Trainee> traineeStorage;
+    private SessionFactory sessionFactory;
 
     @Autowired
-    @Qualifier("trainerStorage")
-    private Map<Long, Trainer> trainerStorage;
+    private PlatformTransactionManager transactionManager;
 
     @Autowired
-    @Qualifier("trainingStorage")
-    private Map<Long, Training> trainingStorage;
+    private DataSource dataSource;
 
     @Test
-    void springContextStartsAndLoadsInitialData() {
+    void springContextStartsWithHibernateInfrastructure() {
         assertNotNull(facade);
-        assertEquals(1, traineeStorage.size());
-        assertEquals(1, trainerStorage.size());
-        assertEquals(1, trainingStorage.size());
-        assertEquals(100L, trainingStorage.get(300L).getTraineeId());
-        assertEquals(200L, trainingStorage.get(300L).getTrainerId());
-
+        assertNotNull(sessionFactory);
+        assertNotNull(transactionManager);
+        assertNotNull(dataSource);
     }
 
+    @Test
+    void hibernateCreatesTheExpectedTables() {
+        JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
+        List<String> expectedTables = List.of(
+                "USERS",
+                "TRAINEES",
+                "TRAINERS",
+                "TRAININGS",
+                "TRAINING_TYPES",
+                "TRAINEE2TRAINER");
+
+        for (String table : expectedTables) {
+            Integer count = jdbcTemplate.queryForObject(
+                    "select count(*) from information_schema.tables " +
+                            "where table_schema = 'PUBLIC' and table_name = ?",
+                    Integer.class,
+                    table);
+            assertEquals(1, count, "Expected Hibernate table " + table);
+        }
+    }
 }

@@ -1,43 +1,106 @@
 package com.epam.gymcrm.dao;
 
 import com.epam.gymcrm.model.Trainer;
-import org.springframework.beans.factory.annotation.Qualifier;
+import com.epam.gymcrm.model.Trainee;
+import org.hibernate.Session;
+import org.hibernate.SessionFactory;
 import org.springframework.stereotype.Repository;
 
-import java.util.Map;
-import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 @Repository
 public class TrainerDAO {
 
-    private final Map<Long, Trainer> storage;
+    private final SessionFactory sessionFactory;
 
-    public TrainerDAO(
-            @Qualifier("trainerStorage")
-            Map<Long, Trainer> storage) {
-        this.storage = storage;
+    public TrainerDAO(SessionFactory sessionFactory) {
+        this.sessionFactory = sessionFactory;
     }
 
     public void save(Trainer trainer) {
-        storage.put(trainer.getId(), trainer);
+        Session session = sessionFactory.getCurrentSession();
+        if (trainer.getId() == null) {
+            session.persist(trainer);
+        } else {
+            session.merge(trainer);
+        }
     }
 
     public Optional<Trainer> findById(Long id) {
-        return Optional.ofNullable(storage.get(id));
+        return sessionFactory.getCurrentSession()
+                .createSelectionQuery(
+                        "select trainer from Trainer trainer " +
+                                "join fetch trainer.user " +
+                                "join fetch trainer.specialization " +
+                                "where trainer.id = :id",
+                        Trainer.class)
+                .setParameter("id", id)
+                .uniqueResultOptional();
+    }
+
+    public Optional<Trainer> findByUsername(String username) {
+        return sessionFactory.getCurrentSession()
+                .createSelectionQuery(
+                        "select trainer from Trainer trainer " +
+                                "join fetch trainer.user user " +
+                                "join fetch trainer.specialization " +
+                                "where user.username = :username",
+                        Trainer.class)
+                .setParameter("username", username)
+                .uniqueResultOptional();
     }
 
     public List<Trainer> findAll() {
-        return new ArrayList<>(storage.values());
+        return sessionFactory.getCurrentSession()
+                .createSelectionQuery(
+                        "select trainer from Trainer trainer " +
+                                "join fetch trainer.user user " +
+                                "join fetch trainer.specialization " +
+                                "order by user.lastName, user.firstName, trainer.id",
+                        Trainer.class)
+                .getResultList();
     }
 
-    public long nextId() {
-        return storage.keySet()
-                .stream()
-                .mapToLong(Long::longValue)
-                .max()
-                .orElse(0L) + 1;
+    public List<Trainer> findAllByUsernames(Collection<String> usernames) {
+        Objects.requireNonNull(usernames, "usernames must not be null");
+        Set<String> uniqueUsernames = new LinkedHashSet<>(usernames);
+        if (uniqueUsernames.isEmpty()) {
+            return List.of();
+        }
+
+        return sessionFactory.getCurrentSession()
+                .createSelectionQuery(
+                        "select trainer from Trainer trainer " +
+                                "join fetch trainer.user user " +
+                                "join fetch trainer.specialization " +
+                                "where user.username in :usernames " +
+                                "order by user.lastName, user.firstName, trainer.id",
+                        Trainer.class)
+                .setParameter("usernames", uniqueUsernames)
+                .getResultList();
+    }
+
+    public List<Trainer> findActiveNotAssignedTo(Trainee trainee) {
+        Objects.requireNonNull(trainee, "trainee must not be null");
+
+        return sessionFactory.getCurrentSession()
+                .createSelectionQuery(
+                        "select trainer from Trainer trainer " +
+                                "join fetch trainer.user user " +
+                                "join fetch trainer.specialization " +
+                                "where user.active = true " +
+                                "and trainer not in (" +
+                                "select assignedTrainer from Trainee assignedTrainee " +
+                                "join assignedTrainee.trainers assignedTrainer " +
+                                "where assignedTrainee = :trainee) " +
+                                "order by user.lastName, user.firstName, trainer.id",
+                        Trainer.class)
+                .setParameter("trainee", trainee)
+                .getResultList();
     }
 }
-
