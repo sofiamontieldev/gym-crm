@@ -1,200 +1,272 @@
 # Gym CRM REST API
 
-Spring Boot REST API for managing trainees, trainers and trainings with an H2 database.
+Spring Boot REST API for managing trainee profiles, trainer profiles and trainings. It includes HTTP Basic authentication, environment-specific database profiles, Actuator health indicators, Prometheus metrics, correlated request logging and automated coverage verification.
 
-## Requirements
+## Technology stack
 
-- JDK 21
-- Maven 3.9 or newer
-- Any Java IDE with Maven support (optional)
+- Java 21 and Spring Boot 3.4.0
+- Spring MVC, Bean Validation and Spring Security
+- Hibernate ORM and Spring transactions
+- H2 in-memory databases for development and tests
+- H2 file database for the persistent production profile
+- Actuator and Micrometer Prometheus registry
+- JUnit 5, Mockito, REST Assured and JaCoCo
+- Maven
 
-Verify the installed tools with:
+## Before you start
 
-```bash
+The recommended reviewer path uses the `dev` profile and an in-memory H2 database, so it does not require an external database.
+
+Install:
+
+1. JDK 21.
+2. Maven 3.9 or newer.
+
+Verify with:
+
+```text
 java -version
 mvn -version
 ```
 
+Both commands must report Java 21. Run the following commands from the project root, where `pom.xml` is located.
+
 ## Quick start
 
-1. Clone or extract the project.
-2. Open a terminal in the project root, where `pom.xml` is located.
-3. Build and verify the project:
+### 1. Build and verify
 
-```bash
+```text
 mvn clean verify
 ```
 
-4. Start the application:
+The tests automatically use the isolated `test` profile and do not require an external database or environment variables.
 
-```bash
-mvn spring-boot:run
+### 2. Start the application
+
+```text
+mvn spring-boot:run "-Dspring-boot.run.profiles=dev"
 ```
 
-The API will be available at `http://localhost:8080`.
+Wait until the logs report that the `dev` profile is active and contain `Started Application`. The API is available at `http://localhost:8080`. Keep this terminal open and use `Ctrl+C` to stop the application.
 
-No external database installation is required. The application uses an in-memory H2 database and creates a new schema when it starts.
+### 3. Register the first user
 
-## API documentation
+Only trainee and trainer registration are public. Register an account before opening Swagger, Actuator or the H2 console because those resources require authentication.
 
-With the application running, open:
+PowerShell example:
+
+```powershell
+$trainee = Invoke-RestMethod `
+  -Method Post `
+  -Uri "http://localhost:8080/api/v1/trainees" `
+  -ContentType "application/json" `
+  -Body (@{
+    firstName = "Review"
+    lastName = "User"
+    dateOfBirth = "1990-01-15"
+    address = "Bogota"
+  } | ConvertTo-Json)
+
+$trainee
+```
+
+The response contains a generated username and a 10-character password. Copy both values because the plain-text password is returned only at registration. A trainer can be registered through `POST /api/v1/trainers` using one of these specializations: `FITNESS`, `YOGA`, `ZUMBA`, `STRETCHING` or `RESISTANCE`.
+
+### 4. Verify authentication and health
+
+Replace the example credentials with the values returned by registration:
+
+```powershell
+curl.exe --user "Review.User:generatedPassword" `
+  "http://localhost:8080/api/v1/auth/login"
+
+curl.exe --user "Review.User:generatedPassword" `
+  "http://localhost:8080/actuator/health"
+```
+
+Login should return `{"message":"Authenticated"}` and health should report `"status":"UP"`.
+
+### 5. Open Swagger
 
 - Swagger UI: `http://localhost:8080/swagger-ui.html`
 - OpenAPI JSON: `http://localhost:8080/v3/api-docs`
 
-Swagger shows the available requests, response models, validation rules and HTTP Basic authentication configuration. It is also the easiest way to try the API manually.
+The browser will request HTTP Basic credentials. Enter the generated application credentials. In Swagger UI, select **Authorize** and use the same values for protected operations.
 
-## Inspecting the H2 database
+## Spring profiles and databases
 
-The H2 console is enabled for local development. Keep the application running and open:
+`application.properties` contains only configuration shared by all environments. Database connections are defined by profile:
+
+| Profile | Configuration file | Database | Schema strategy | H2 console | Activation |
+|---|---|---|---|---|---|
+| `dev` | `application-dev.properties` | In-memory H2 `gymcrm-dev` | `create-drop` | Enabled | `--spring.profiles.active=dev` |
+| `test` | `application-test.properties` | In-memory H2 `gymcrm-test` | `create-drop` | Disabled | `@ActiveProfiles("test")` in Spring tests |
+| `prod` | `application-prod.properties` | H2 file `data/gymcrm-prod` | `update` | Disabled | `SPRING_PROFILES_ACTIVE=prod` |
+
+The development and test databases use different JDBC URLs and are removed when their respective Spring contexts stop. A runtime profile must be selected explicitly when starting the application.
+
+### Development H2 console
+
+With the `dev` profile running, open:
 
 ```text
 http://localhost:8080/h2-console
 ```
 
-Use these connection settings:
+First authenticate with the generated application credentials if the browser requests them. Then enter these values in the H2 form:
 
-| Field | Value |
+| H2 field | Value |
 |---|---|
 | Driver Class | `org.h2.Driver` |
-| JDBC URL | `jdbc:h2:mem:gymcrm;DB_CLOSE_DELAY=-1` |
+| JDBC URL | `jdbc:h2:mem:gymcrm-dev;DB_CLOSE_DELAY=-1` |
 | User Name | `sa` |
 | Password | Leave empty |
 
-Select **Connect**. The JDBC URL must match exactly; a different URL can open a separate empty database.
+The JDBC URL must match exactly. Because `dev` uses `create-drop`, all development data is removed when the application stops.
 
-Register trainees and trainers from Swagger, and then use these queries to inspect the stored data:
+### Production profile
 
-```sql
-SELECT id, username, first_name, last_name, role, is_active
-FROM users
-ORDER BY id;
+The `prod` profile uses a persistent H2 file database. It does not require an external database installation, creates missing tables with `spring.jpa.hibernate.ddl-auto=update` and preserves data between executions. The generated database files are stored under `data/`, which is excluded from Git.
 
-SELECT trainee.id, user.username, trainee.date_of_birth, trainee.address
-FROM trainees trainee
-JOIN users user ON user.id = trainee.user_id;
+Build and start it with PowerShell:
 
-SELECT trainer.id, user.username,
-       training_type.training_type_name AS specialization
-FROM trainers trainer
-JOIN users user ON user.id = trainer.user_id
-JOIN training_types training_type
-  ON training_type.id = trainer.specialization_id;
+```powershell
+$env:SPRING_PROFILES_ACTIVE = "prod"
 
-SELECT * FROM trainee2trainer;
-SELECT * FROM trainings;
-SELECT * FROM training_types;
+java -jar target/gym-crm-1.0-SNAPSHOT.jar
 ```
 
-The `password` column in `users` contains a BCrypt hash, never the generated plain-text password. Because the database is in memory and Hibernate uses `create-drop`, all local data is removed when the application stops.
+In Bash, run `export SPRING_PROFILES_ACTIVE=prod` before starting the JAR.
 
-## Authentication
+## Authentication and authorization
 
-Trainee and trainer registration are public. All other business endpoints require HTTP Basic authentication.
+The application is stateless and uses HTTP Basic authentication.
 
-Registration returns a generated username and password once. The password contains 10 characters and the response uses `Cache-Control: no-store`. Only its BCrypt hash is stored in the database. Passwords and password hashes are not included in API models or logs.
-
-An inactive user cannot use normal operations, but can provide their own credentials to reactivate their account. A user cannot change the status or profile of another account.
+- `POST /api/v1/trainees` and `POST /api/v1/trainers` are public.
+- Every other API, Swagger, H2 and Actuator request is protected.
+- Credentials are checked against the stored username and BCrypt password hash.
+- Profile operations require the authenticated user to match the target `{username}`.
+- An inactive user cannot perform normal operations but can reactivate their own account.
+- Registration responses use `Cache-Control: no-store` because they contain the one-time plain-text password.
 
 ## Main endpoints
 
-| Method | Endpoint | Description |
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| `POST` | `/api/v1/trainees` | Public | Register a trainee and return credentials |
+| `POST` | `/api/v1/trainers` | Public | Register a trainer and return credentials |
+| `GET` | `/api/v1/auth/login` | Authenticated user | Validate credentials and active status |
+| `PUT` | `/api/v1/auth/password` | Active account owner | Change the authenticated user's password |
+| `GET` | `/api/v1/trainees/{username}` | Active account owner | Get a trainee profile |
+| `PUT` | `/api/v1/trainees/{username}` | Active account owner | Update a trainee profile |
+| `DELETE` | `/api/v1/trainees/{username}` | Active account owner | Delete a trainee and their trainings |
+| `GET` | `/api/v1/trainers/{username}` | Active account owner | Get a trainer profile |
+| `PUT` | `/api/v1/trainers/{username}` | Active account owner | Update a trainer profile |
+| `GET` | `/api/v1/trainees/{username}/available-trainers` | Active account owner | List active, unassigned trainers |
+| `PUT` | `/api/v1/trainees/{username}/trainers` | Active account owner | Replace a trainee's trainer list |
+| `GET` | `/api/v1/trainees/{username}/trainings` | Active account owner | Get trainee trainings with optional filters |
+| `GET` | `/api/v1/trainers/{username}/trainings` | Active account owner | Get trainer trainings with optional filters |
+| `POST` | `/api/v1/trainings` | Active user | Create a training using the trainer specialization as its type |
+| `PATCH` | `/api/v1/users/{username}/status` | Account owner | Activate or deactivate an account |
+| `GET` | `/api/v1/training-types` | Active user | List the fixed training types |
+
+Training filters use ISO dates (`yyyy-MM-dd`). `trainerName` and `traineeName` refer to usernames.
+
+## Observability
+
+The protected Actuator endpoints are `/actuator/health`, `/actuator/info`, `/actuator/metrics` and `/actuator/prometheus`.
+
+### Health indicators
+
+| Component | Verification |
+|---|---|
+| `gymDatabase` | Obtains and validates a database connection |
+| `trainingCatalog` | Confirms that all five fixed training types exist |
+
+An authenticated health response should include both custom components with status `UP`. Spring Boot can include additional components.
+
+### Prometheus metrics
+
+| Metric | Labels | Incremented when |
 |---|---|---|
-| `POST` | `/api/v1/trainees` | Register a trainee and return credentials |
-| `POST` | `/api/v1/trainers` | Register a trainer and return credentials |
-| `GET` | `/api/v1/auth/login` | Validate credentials and active status |
-| `PUT` | `/api/v1/auth/password` | Change the authenticated user's password |
-| `GET` | `/api/v1/trainees/{username}` | Get a trainee profile |
-| `PUT` | `/api/v1/trainees/{username}` | Update a trainee profile |
-| `DELETE` | `/api/v1/trainees/{username}` | Delete a trainee and their trainings |
-| `GET` | `/api/v1/trainers/{username}` | Get a trainer profile |
-| `PUT` | `/api/v1/trainers/{username}` | Update a trainer profile |
-| `GET` | `/api/v1/trainees/{username}/available-trainers` | List active, unassigned trainers |
-| `PUT` | `/api/v1/trainees/{username}/trainers` | Replace the trainee's trainer list |
-| `GET` | `/api/v1/trainees/{username}/trainings` | Get trainee trainings using optional filters |
-| `GET` | `/api/v1/trainers/{username}/trainings` | Get trainer trainings using optional filters |
-| `POST` | `/api/v1/trainings` | Create a training |
-| `PATCH` | `/api/v1/users/{username}/status` | Activate or deactivate an account |
-| `GET` | `/api/v1/training-types` | List the fixed training types |
+| `gym_profile_registrations_total` | `role=trainee|trainer` | A profile is registered |
+| `gym_trainings_created_total` | `type=<training type>` | A training is created |
+| `gym_password_changes_total` | `role=trainee|trainer` | A password is changed successfully |
 
-The public filter parameters `trainerName` and `traineeName` represent profile usernames. A training type is automatically derived from the trainer specialization when a training is created.
+Counters appear after their corresponding event occurs. Query the Prometheus endpoint with:
 
-## Trying the API
+```powershell
+curl.exe --silent --user "Review.User:generatedPassword" `
+  "http://localhost:8080/actuator/prometheus" |
+  Select-String "gym_profile_registrations|gym_trainings_created|gym_password_changes"
+```
 
-1. Open Swagger UI.
-2. Run `POST /api/v1/trainees` or `POST /api/v1/trainers`.
-3. Copy the generated username and password from the response.
-4. Select **Authorize** and enter those credentials using HTTP Basic.
-5. Run the protected endpoints directly from Swagger.
+## Responses and logging
 
-## Responses and errors
+Registrations return `201 Created`; other successful business operations generally return `200 OK`. Errors use `application/problem+json`:
 
-Successful registrations return `201 Created`. Other successful operations return `200 OK`.
+- `400 Bad Request`: validation failure;
+- `401 Unauthorized`: missing or invalid credentials, or inactive user;
+- `403 Forbidden`: attempt to operate on another account;
+- `404 Not Found`: missing resource;
+- `409 Conflict`: invalid or repeated account-status transition.
 
-Errors use the `application/problem+json` format:
+Every HTTP response includes `X-Transaction-Id`. The same identifier appears in console logs to correlate each request. Passwords and password hashes are not logged.
 
-- `400 Bad Request`: invalid request data
-- `401 Unauthorized`: invalid credentials or inactive user
-- `403 Forbidden`: attempt to operate on another account
-- `404 Not Found`: resource does not exist
-- `409 Conflict`: invalid or repeated status transition
-
-Every response includes an `X-Transaction-Id` header. The same value is added to application logs to make requests easier to trace.
-
-## Architecture and persistence
-
-The project keeps a simple layered structure:
+## Architecture
 
 ```text
-REST Controllers -> Services -> Hibernate DAOs -> H2
-                         |
-                         +-> Authentication and business rules
+REST controllers -> Services -> Hibernate DAOs -> Profile database
+                          |
+                          +-> authentication and business rules
+                          +-> Micrometer metrics
 ```
 
-- Controllers use request and response DTOs. Hibernate entities are not exposed by the API.
-- Services contain transactions and business rules.
-- DAOs contain Hibernate queries and persistence operations.
-- `UserRole` ensures that one account is either a trainee or a trainer.
-- Profile updates assign the requested state idempotently.
-- The status endpoint returns `409 Conflict` when the requested transition has already happened.
-
-The application automatically creates the fixed training types `FITNESS`, `YOGA`, `ZUMBA`, `STRETCHING` and `RESISTANCE` at startup.
-
-Default database settings are located in `src/main/resources/application.properties`:
-
-```properties
-db.url=jdbc:h2:mem:gymcrm;DB_CLOSE_DELAY=-1
-db.driver=org.h2.Driver
-db.username=sa
-db.password=
-hibernate.hbm2ddl.auto=create-drop
-```
+- Spring dependencies use constructor injection.
+- Controllers expose DTOs instead of Hibernate entities.
+- Services own transactions and business rules.
+- DAOs contain persistence queries.
 
 ## Tests and coverage
 
-Run the complete verification process with:
+Run the complete quality gate:
 
-```bash
+```text
 mvn clean verify
 ```
 
-This command:
+This runs unit and integration tests, packages the application, generates `target/site/jacoco/index.html` and fails when line coverage is below 80%.
 
-- compiles and packages the application;
-- runs the unit, persistence and REST integration tests;
-- creates the JaCoCo coverage report;
-- fails if line coverage is below 80%.
+Run tests without packaging or the final coverage check:
 
-Run only the tests with:
-
-```bash
+```text
 mvn test
 ```
 
-After `verify`, open the coverage report at:
+Tests cover domain and service behavior, persistence, Spring wiring, security, custom health indicators, metrics and the complete REST workflow.
+
+## Troubleshooting
+
+### Missing database properties at startup
+
+Activate a runtime profile. For local review:
 
 ```text
-target/site/jacoco/index.html
+mvn spring-boot:run "-Dspring-boot.run.profiles=dev"
 ```
 
-The REST integration test exercises the complete task flow, including registration, authentication, profile updates, trainer assignment, training creation and filtering, password changes, account status changes and trainee deletion.
+### `401 Unauthorized`
+
+Register a trainee or trainer first, then use the generated credentials with HTTP Basic authentication.
+
+### H2 shows no tables
+
+Use exactly `jdbc:h2:mem:gymcrm-dev;DB_CLOSE_DELAY=-1` while the application is running with `dev`.
+
+### Port 8080 is in use
+
+Stop the process using the port or start on another one:
+
+```text
+mvn spring-boot:run "-Dspring-boot.run.profiles=dev" "-Dspring-boot.run.arguments=--server.port=8081"
+```
