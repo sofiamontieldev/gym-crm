@@ -1,13 +1,12 @@
 package com.epam.gymcrm.loader;
 
-import com.epam.gymcrm.config.AppConfig;
 import com.epam.gymcrm.model.TrainingType;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -16,23 +15,23 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-@SpringJUnitConfig(AppConfig.class)
+@SpringBootTest
+@ActiveProfiles("test")
 class TrainingTypeInitializerTest {
 
-    @Autowired
-    private SessionFactory sessionFactory;
+    private final SessionFactory sessionFactory;
+    private final TrainingTypeInitializer initializer;
+    private final TransactionTemplate transactionTemplate;
 
     @Autowired
-    private PlatformTransactionManager transactionManager;
+    TrainingTypeInitializerTest(
+            SessionFactory sessionFactory,
+            PlatformTransactionManager transactionManager,
+            TrainingTypeInitializer initializer) {
 
-    @Autowired
-    private TrainingTypeInitializer initializer;
-
-    private TransactionTemplate transactionTemplate;
-
-    @BeforeEach
-    void setUp() {
-        transactionTemplate = new TransactionTemplate(transactionManager);
+        this.sessionFactory = sessionFactory;
+        this.initializer = initializer;
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
     @Test

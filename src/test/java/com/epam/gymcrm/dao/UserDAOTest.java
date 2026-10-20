@@ -1,27 +1,31 @@
 package com.epam.gymcrm.dao;
 
-import com.epam.gymcrm.config.AppConfig;
 import com.epam.gymcrm.model.User;
 import com.epam.gymcrm.model.UserRole;
 import org.hibernate.SessionFactory;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@SpringJUnitConfig(AppConfig.class)
+@SpringBootTest
 @Transactional
+@ActiveProfiles("test")
 class UserDAOTest {
 
-    @Autowired
-    private SessionFactory sessionFactory;
+    private final SessionFactory sessionFactory;
+    private final UserDAO userDAO;
 
     @Autowired
-    private UserDAO userDAO;
+    UserDAOTest(SessionFactory sessionFactory, UserDAO userDAO) {
+        this.sessionFactory = sessionFactory;
+        this.userDAO = userDAO;
+    }
 
     @Test
     void findsExistingUserByUsername() {

@@ -1,11 +1,11 @@
 package com.epam.gymcrm.model;
 
-import com.epam.gymcrm.config.AppConfig;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
@@ -15,12 +15,17 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
-@SpringJUnitConfig(AppConfig.class)
+@SpringBootTest
 @Transactional
+@ActiveProfiles("test")
 class HibernatePersistenceTest {
 
+    private final SessionFactory sessionFactory;
+
     @Autowired
-    private SessionFactory sessionFactory;
+    HibernatePersistenceTest(SessionFactory sessionFactory) {
+        this.sessionFactory = sessionFactory;
+    }
 
     @Test
     void savesAndLoadsUser() {

@@ -1,10 +1,10 @@
 package com.epam.gymcrm.dao;
 
-import com.epam.gymcrm.config.AppConfig;
 import com.epam.gymcrm.model.TrainingType;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -12,12 +12,17 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@SpringJUnitConfig(AppConfig.class)
+@SpringBootTest
 @Transactional
+@ActiveProfiles("test")
 class TrainingTypeDAOTest {
 
+    private final TrainingTypeDAO trainingTypeDAO;
+
     @Autowired
-    private TrainingTypeDAO trainingTypeDAO;
+    TrainingTypeDAOTest(TrainingTypeDAO trainingTypeDAO) {
+        this.trainingTypeDAO = trainingTypeDAO;
+    }
 
     @Test
     void findsSeededTrainingTypeByName() {
