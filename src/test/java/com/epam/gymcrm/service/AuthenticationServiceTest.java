@@ -7,6 +7,8 @@ import ch.qos.logback.core.read.ListAppender;
 import com.epam.gymcrm.dao.UserDAO;
 import com.epam.gymcrm.exception.AuthenticationException;
 import com.epam.gymcrm.model.User;
+import com.epam.gymcrm.model.UserRole;
+import com.epam.gymcrm.monitoring.GymMetrics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
@@ -20,17 +22,23 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class AuthenticationServiceTest {
 
     private UserDAO userDAO;
     private AuthenticationService authenticationService;
+    private BCryptPasswordEncoder passwordEncoder;
+    private GymMetrics gymMetrics;
 
     @BeforeEach
     void setUp() {
         userDAO = mock(UserDAO.class);
-        authenticationService = new AuthenticationService(userDAO, new BCryptPasswordEncoder());
+        passwordEncoder = new BCryptPasswordEncoder();
+        gymMetrics = mock(GymMetrics.class);
+        authenticationService = new AuthenticationService(userDAO, passwordEncoder, gymMetrics);
     }
 
     @Test
@@ -92,12 +100,42 @@ class AuthenticationServiceTest {
                 authenticationService.verifyCredentials("Valentina.Rojas", "Abc1234567"));
     }
 
+    @Test
+    void recordsMetricAfterChangingPassword() {
+        User user = user(true);
+        when(userDAO.findByUsername("Valentina.Rojas")).thenReturn(Optional.of(user));
+
+        authenticationService.changePassword(
+                "Valentina.Rojas",
+                "Abc1234567",
+                "NewPass123");
+
+        verify(gymMetrics).passwordChanged(UserRole.TRAINEE);
+        assertTrue(passwordEncoder.matches("NewPass123", user.getPasswordHash()));
+    }
+
+    @Test
+    void doesNotRecordMetricWhenNewPasswordIsInvalid() {
+        User user = user(true);
+        when(userDAO.findByUsername("Valentina.Rojas")).thenReturn(Optional.of(user));
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> authenticationService.changePassword(
+                        "Valentina.Rojas",
+                        "Abc1234567",
+                        "short"));
+
+        verifyNoInteractions(gymMetrics);
+    }
+
     private static User user(boolean active) {
         return new User.Builder()
                 .setFirstName("Valentina")
                 .setLastName("Rojas")
                 .setUsername("Valentina.Rojas")
                 .setPassword(new BCryptPasswordEncoder().encode("Abc1234567"))
+                .setRole(UserRole.TRAINEE)
                 .setActive(active)
                 .build();
     }

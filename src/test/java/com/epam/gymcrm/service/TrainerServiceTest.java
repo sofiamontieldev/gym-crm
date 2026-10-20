@@ -9,6 +9,8 @@ import com.epam.gymcrm.dao.TrainingTypeDAO;
 import com.epam.gymcrm.model.Trainer;
 import com.epam.gymcrm.model.TrainingType;
 import com.epam.gymcrm.model.User;
+import com.epam.gymcrm.model.UserRole;
+import com.epam.gymcrm.monitoring.GymMetrics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
@@ -20,8 +22,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class TrainerServiceTest {
@@ -33,6 +38,7 @@ class TrainerServiceTest {
     private UsernameGenerator usernameGenerator;
     private TrainerService trainerService;
     private PasswordEncoder passwordEncoder;
+    private GymMetrics gymMetrics;
 
     @BeforeEach
     void setUp() {
@@ -42,13 +48,15 @@ class TrainerServiceTest {
         passwordGenerator = mock(PasswordGenerator.class);
         usernameGenerator = mock(UsernameGenerator.class);
         passwordEncoder = mock(PasswordEncoder.class);
+        gymMetrics = mock(GymMetrics.class);
         trainerService = new TrainerService(
                 trainerDAO,
                 trainingTypeDAO,
                 authenticationService,
                 passwordGenerator,
                 usernameGenerator,
-                passwordEncoder);
+                passwordEncoder,
+                gymMetrics);
     }
 
     @Test
@@ -65,6 +73,24 @@ class TrainerServiceTest {
         assertEquals("bcrypt-hash", trainer.getUser().getPasswordHash());
         assertSame(fitness, trainer.getSpecialization());
         verify(trainerDAO).save(trainer);
+        verify(gymMetrics).profileRegistered(UserRole.TRAINER);
+    }
+
+    @Test
+    void doesNotRecordRegistrationWhenPersistenceFails() {
+        TrainingType fitness = new TrainingType("FITNESS");
+        when(trainingTypeDAO.findByName("FITNESS")).thenReturn(Optional.of(fitness));
+        when(usernameGenerator.generate("Andres", "Gomez")).thenReturn("Andres.Gomez");
+        when(passwordGenerator.generate()).thenReturn("Abc1234567");
+        when(passwordEncoder.encode("Abc1234567")).thenReturn("bcrypt-hash");
+        doThrow(new IllegalStateException("Database unavailable"))
+                .when(trainerDAO).save(any(Trainer.class));
+
+        assertThrows(
+                IllegalStateException.class,
+                () -> trainerService.createTrainer("Andres", "Gomez", "FITNESS"));
+
+        verifyNoInteractions(gymMetrics);
     }
 
     @Test

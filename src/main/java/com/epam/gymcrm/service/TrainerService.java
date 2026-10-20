@@ -8,6 +8,7 @@ import com.epam.gymcrm.model.Trainer;
 import com.epam.gymcrm.model.TrainingType;
 import com.epam.gymcrm.model.User;
 import com.epam.gymcrm.model.UserRole;
+import com.epam.gymcrm.monitoring.GymMetrics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -25,6 +26,7 @@ public class TrainerService {
     private final PasswordGenerator passwordGenerator;
     private final UsernameGenerator usernameGenerator;
     private final PasswordEncoder passwordEncoder;
+    private final GymMetrics gymMetrics;
 
     public TrainerService(
             TrainerDAO trainerDAO,
@@ -32,7 +34,8 @@ public class TrainerService {
             AuthenticationService authenticationService,
             PasswordGenerator passwordGenerator,
             UsernameGenerator usernameGenerator,
-            PasswordEncoder passwordEncoder) {
+            PasswordEncoder passwordEncoder,
+            GymMetrics gymMetrics) {
 
         this.trainerDAO = trainerDAO;
         this.trainingTypeDAO = trainingTypeDAO;
@@ -40,6 +43,7 @@ public class TrainerService {
         this.passwordGenerator = passwordGenerator;
         this.usernameGenerator = usernameGenerator;
         this.passwordEncoder = passwordEncoder;
+        this.gymMetrics = gymMetrics;
     }
 
     @Transactional
@@ -71,6 +75,7 @@ public class TrainerService {
 
         Trainer trainer = new Trainer(user, specialization);
         trainerDAO.save(trainer);
+        gymMetrics.profileRegistered(UserRole.TRAINER);
         log.info("Trainer created with id {} and username {}", trainer.getId(), username);
         return new RegistrationResult<>(trainer, username, password);
     }

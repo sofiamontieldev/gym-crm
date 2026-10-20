@@ -14,6 +14,7 @@ import com.epam.gymcrm.model.Trainer;
 import com.epam.gymcrm.model.Training;
 import com.epam.gymcrm.model.TrainingType;
 import com.epam.gymcrm.model.User;
+import com.epam.gymcrm.monitoring.GymMetrics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
@@ -25,8 +26,11 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class TrainingServiceTest {
@@ -37,6 +41,7 @@ class TrainingServiceTest {
     private TrainingTypeDAO trainingTypeDAO;
     private AuthenticationService authenticationService;
     private TrainingService trainingService;
+    private GymMetrics gymMetrics;
 
     @BeforeEach
     void setUp() {
@@ -45,12 +50,14 @@ class TrainingServiceTest {
         trainerDAO = mock(TrainerDAO.class);
         trainingTypeDAO = mock(TrainingTypeDAO.class);
         authenticationService = mock(AuthenticationService.class);
+        gymMetrics = mock(GymMetrics.class);
         trainingService = new TrainingService(
                 trainingDAO,
                 traineeDAO,
                 trainerDAO,
                 trainingTypeDAO,
-                authenticationService);
+                authenticationService,
+                gymMetrics);
     }
 
     @Test
@@ -79,6 +86,35 @@ class TrainingServiceTest {
         assertSame(fitness, training.getTrainingType());
         assertEquals("Morning Fitness", training.getTrainingName());
         verify(trainingDAO).save(training);
+        verify(gymMetrics).trainingCreated("FITNESS");
+    }
+
+    @Test
+    void doesNotRecordTrainingWhenPersistenceFails() {
+        Trainee trainee = trainee();
+        Trainer trainer = trainer();
+        when(authenticationService.authenticate("Camila.Restrepo", "Abc1234567"))
+                .thenReturn(user("Camila", "Restrepo", "Camila.Restrepo"));
+        when(traineeDAO.findByUsername("Valentina.Rojas")).thenReturn(Optional.of(trainee));
+        when(trainerDAO.findByUsername("Andres.Gomez")).thenReturn(Optional.of(trainer));
+        when(trainingTypeDAO.findByName("FITNESS"))
+                .thenReturn(Optional.of(trainer.getSpecialization()));
+        doThrow(new IllegalStateException("Database unavailable"))
+                .when(trainingDAO).save(any(Training.class));
+
+        assertThrows(
+                IllegalStateException.class,
+                () -> trainingService.createTraining(
+                        "Camila.Restrepo",
+                        "Abc1234567",
+                        "Valentina.Rojas",
+                        "Andres.Gomez",
+                        "Morning Fitness",
+                        "FITNESS",
+                        LocalDate.of(2026, 10, 5),
+                        60));
+
+        verifyNoInteractions(gymMetrics);
     }
 
     @Test
