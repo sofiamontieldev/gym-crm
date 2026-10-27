@@ -7,15 +7,21 @@ Spring Boot REST API for managing trainee profiles, trainer profiles and trainin
 - Java 21 and Spring Boot 3.4.0
 - Spring MVC, Bean Validation and Spring Security
 - Hibernate ORM and Spring transactions
-- H2 in-memory databases for development and tests
-- H2 file database for the persistent production profile
+- H2 databases for development, tests and the standalone production profile
+- MySQL 8.4 for the Docker profile
+- ActiveMQ Classic events and a REST client for `gym-reports`
 - Actuator and Micrometer Prometheus registry
 - JUnit 5, Mockito, REST Assured and JaCoCo
 - Maven
 
 ## Before you start
 
-The recommended reviewer path uses the `dev` profile and an in-memory H2 database, so it does not require an external database.
+There are two ways to run this repository:
+
+- **Main application only:** use the `dev` profile and the in-memory H2 database. This is useful for working only on `gym-crm`.
+- **Complete solution:** use Docker Compose to start `gym-crm`, `gym-reports`, MySQL, MongoDB and ActiveMQ together. This is the recommended option for reviewing the containerization task.
+
+The Main-only option does not require an external database.
 
 Install:
 
@@ -102,6 +108,7 @@ The browser will request HTTP Basic credentials. Enter the generated application
 | `dev` | `application-dev.properties` | In-memory H2 `gymcrm-dev` | `create-drop` | Enabled | `--spring.profiles.active=dev` |
 | `test` | `application-test.properties` | In-memory H2 `gymcrm-test` | `create-drop` | Disabled | `@ActiveProfiles("test")` in Spring tests |
 | `prod` | `application-prod.properties` | H2 file `data/gymcrm-prod` | `update` | Disabled | `SPRING_PROFILES_ACTIVE=prod` |
+| `docker` | `application-docker.properties` | MySQL service `mysql` | `update` | Disabled | Set by `compose.yaml` |
 
 The development and test databases use different JDBC URLs and are removed when their respective Spring contexts stop. A runtime profile must be selected explicitly when starting the application.
 
@@ -143,6 +150,7 @@ In Bash, run `export SPRING_PROFILES_ACTIVE=prod` before starting the JAR.
 The application is stateless and uses HTTP Basic authentication.
 
 - `POST /api/v1/trainees` and `POST /api/v1/trainers` are public.
+- `/actuator/health` and `/actuator/info` are public for container orchestration.
 - Every other API, Swagger, H2 and Actuator request is protected.
 - Credentials are checked against the stored username and BCrypt password hash.
 - Profile operations require the authenticated user to match the target `{username}`.
@@ -169,12 +177,14 @@ The application is stateless and uses HTTP Basic authentication.
 | `POST` | `/api/v1/trainings` | Active user | Create a training using the trainer specialization as its type |
 | `PATCH` | `/api/v1/users/{username}/status` | Account owner | Activate or deactivate an account |
 | `GET` | `/api/v1/training-types` | Active user | List the fixed training types |
+| `GET` | `/api/v1/reports/trainers/{username}/workload` | Active user, Docker profile | Proxy a workload query to `gym-reports` |
 
 Training filters use ISO dates (`yyyy-MM-dd`). `trainerName` and `traineeName` refer to usernames.
 
 ## Observability
 
-The protected Actuator endpoints are `/actuator/health`, `/actuator/info`, `/actuator/metrics` and `/actuator/prometheus`.
+`/actuator/health` and `/actuator/info` are public. `/actuator/metrics` and
+`/actuator/prometheus` remain protected.
 
 ### Health indicators
 
@@ -220,6 +230,9 @@ REST controllers -> Services -> Hibernate DAOs -> Profile database
                           |
                           +-> authentication and business rules
                           +-> Micrometer metrics
+                          +-> after-commit ActiveMQ events -> gym-reports -> MongoDB
+
+REST reports endpoint -> ReportsClient -> gym-reports
 ```
 
 - Spring dependencies use constructor injection.
@@ -245,7 +258,177 @@ mvn test
 
 Tests cover domain and service behavior, persistence, Spring wiring, security, custom health indicators, metrics and the complete REST workflow.
 
+## Run the complete solution with Docker
+
+Docker Compose builds the two applications and starts these five containers:
+
+- `main`: the `gym-crm` API;
+- `reports`: the `gym-reports` API;
+- `mysql`: the database used by `gym-crm`;
+- `mongodb`: the database used by `gym-reports`;
+- `activemq`: the message broker used to send events from Main to Reports.
+
+### 1. Check the folder structure
+
+The two repositories must be separate sibling folders. Do not place `gym-reports`
+inside `gym-crm`.
+
+```text
+epam-sp/
+|-- gym-crm/
+`-- gym-reports/
+```
+
+The `compose.yaml` file is inside `gym-crm` and uses `../gym-reports` to find and
+build the Reports project.
+
+### 2. Check the requirements
+
+Install and start Docker Desktop. Wait until Docker Desktop reports that the
+engine is running. Then open PowerShell and verify:
+
+```powershell
+docker version
+docker compose version
+```
+
+`docker version` must show both a **Client** section and a **Server** section.
+
+### 3. Create the local environment file
+
+Open PowerShell in the `gym-crm` folder. For example:
+
+```powershell
+cd C:\path\to\epam-sp\gym-crm
+```
+
+Replace `C:\path\to` with the location where the repositories were downloaded.
+Before continuing, the PowerShell prompt should end in `\gym-crm`.
+
+Copy the example environment file. This command is needed only the first time:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+The new `.env` file provides the local usernames, passwords and database names
+used by Docker Compose. The included values are only for this local academic
+project. The `.env` file is ignored by Git and must not be committed.
+
+### 4. Build and start the five containers
+
+Run these commands from the `gym-crm` folder:
+
+```powershell
+docker compose config --quiet
+docker compose up --build -d
+```
+
+The first execution can take several minutes because Docker must download the
+base images, build both Java applications and create the databases. The `-d`
+option leaves the containers running in the background.
+
+### 5. Check that the containers are ready
+
+Run:
+
+```powershell
+docker compose ps
+```
+
+The output must list `main`, `reports`, `mysql`, `mongodb` and `activemq`.
+`main`, `reports`, `mysql` and `mongodb` should show `healthy`. ActiveMQ does not
+have a Compose health check, so its normal state is `Up`.
+
+If a service still says `starting`, wait a few seconds and run
+`docker compose ps` again.
+
+### 6. Check the two applications
+
+Run:
+
+```powershell
+curl.exe http://localhost:8080/actuator/health
+curl.exe http://localhost:8081/actuator/health
+```
+
+Both responses must contain `"status":"UP"`. This confirms that the two Spring
+Boot applications started and can reach their required services.
+
+The available addresses are:
+
+| Component | Address |
+|---|---|
+| Main API | `http://localhost:8080` |
+| Main Swagger UI | `http://localhost:8080/swagger-ui.html` |
+| Reports API | `http://localhost:8081` |
+| ActiveMQ console | `http://localhost:8161` |
+| MongoDB from Windows | `localhost:27018` |
+
+The ActiveMQ console uses `admin` as both username and password in this local
+setup. Protected Main endpoints and Swagger operations require an application
+user created through `POST /api/v1/trainees` or `POST /api/v1/trainers`, as
+explained in the Quick start section.
+
+The cross-service JSON contract is documented in
+[`docs/contracts/trainer-workload-v1.md`](docs/contracts/trainer-workload-v1.md).
+
+### 7. Review logs if a container does not start
+
+Show the latest logs from both applications:
+
+```powershell
+docker compose logs --tail 50 main reports
+```
+
+To follow the logs while testing the solution, use:
+
+```powershell
+docker compose logs -f main reports
+```
+
+Press `Ctrl+C` to stop following the logs. This does not stop the containers.
+
+### 8. Stop the solution
+
+Stop and remove the containers without deleting the database data:
+
+```powershell
+docker compose down
+```
+
+Do not use `docker compose down -v` unless you intentionally want to delete the
+MySQL and MongoDB data. The next time, start the solution with:
+
+```powershell
+docker compose up -d
+```
+
 ## Troubleshooting
+
+### Docker cannot connect to the Docker API
+
+Start Docker Desktop and wait until its engine is running. Then run
+`docker version` again. Do not continue until the command shows both **Client**
+and **Server** information.
+
+### A container is unhealthy or did not start
+
+Check its current state and the latest application logs:
+
+```powershell
+docker compose ps
+docker compose logs --tail 50 main reports
+```
+
+After correcting the reported problem, start the services again with
+`docker compose up -d`.
+
+### A required port is already in use
+
+This solution uses ports `8080`, `8081`, `8161`, `61616` and `27018` on the
+computer. Stop the other application or container that is already using the
+reported port, and then run `docker compose up -d` again.
 
 ### Missing database properties at startup
 
