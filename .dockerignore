@@ -1,0 +1,10 @@
+.git
+.github
+.idea
+.vscode
+target
+data
+.env
+*.log
+docs/containerization/evidence/*.png
+docs/containerization/evidence/*.txt
