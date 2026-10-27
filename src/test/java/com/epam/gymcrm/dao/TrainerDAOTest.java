@@ -1,6 +1,5 @@
 package com.epam.gymcrm.dao;
 
-import com.epam.gymcrm.config.AppConfig;
 import com.epam.gymcrm.model.Trainee;
 import com.epam.gymcrm.model.Trainer;
 import com.epam.gymcrm.model.TrainingType;
@@ -9,7 +8,8 @@ import org.hibernate.Session;
 import org.hibernate.SessionFactory;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
@@ -18,18 +18,25 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@SpringJUnitConfig(AppConfig.class)
+@SpringBootTest
 @Transactional
+@ActiveProfiles("test")
 class TrainerDAOTest {
 
-    @Autowired
-    private SessionFactory sessionFactory;
+    private final SessionFactory sessionFactory;
+    private final TrainerDAO trainerDAO;
+    private final TrainingTypeDAO trainingTypeDAO;
 
     @Autowired
-    private TrainerDAO trainerDAO;
+    TrainerDAOTest(
+            SessionFactory sessionFactory,
+            TrainerDAO trainerDAO,
+            TrainingTypeDAO trainingTypeDAO) {
 
-    @Autowired
-    private TrainingTypeDAO trainingTypeDAO;
+        this.sessionFactory = sessionFactory;
+        this.trainerDAO = trainerDAO;
+        this.trainingTypeDAO = trainingTypeDAO;
+    }
 
     @Test
     void findsTrainerByUsernameAndUsernameCollection() {

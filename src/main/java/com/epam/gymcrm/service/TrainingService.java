@@ -9,6 +9,7 @@ import com.epam.gymcrm.model.Trainee;
 import com.epam.gymcrm.model.Trainer;
 import com.epam.gymcrm.model.Training;
 import com.epam.gymcrm.model.TrainingType;
+import com.epam.gymcrm.monitoring.GymMetrics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -27,19 +28,22 @@ public class TrainingService {
     private final TrainerDAO trainerDAO;
     private final TrainingTypeDAO trainingTypeDAO;
     private final AuthenticationService authenticationService;
+    private final GymMetrics gymMetrics;
 
     public TrainingService(
             TrainingDAO trainingDAO,
             TraineeDAO traineeDAO,
             TrainerDAO trainerDAO,
             TrainingTypeDAO trainingTypeDAO,
-            AuthenticationService authenticationService) {
+            AuthenticationService authenticationService,
+            GymMetrics gymMetrics) {
 
         this.trainingDAO = trainingDAO;
         this.traineeDAO = traineeDAO;
         this.trainerDAO = trainerDAO;
         this.trainingTypeDAO = trainingTypeDAO;
         this.authenticationService = authenticationService;
+        this.gymMetrics = gymMetrics;
     }
 
     @Transactional
@@ -67,6 +71,7 @@ public class TrainingService {
                 trainingDuration);
 
         trainingDAO.save(training);
+        gymMetrics.trainingCreated(training.getTrainingType().getName());
         log.info(
                 "Training created with id {} for trainee {} and trainer {}",
                 training.getId(),
@@ -93,6 +98,7 @@ public class TrainingService {
                 trainingDate,
                 trainingDuration);
         trainingDAO.save(training);
+        gymMetrics.trainingCreated(training.getTrainingType().getName());
         log.info("Training created with id {} for trainee {} and trainer {}",
                 training.getId(), traineeUsername, trainerUsername);
         return training;

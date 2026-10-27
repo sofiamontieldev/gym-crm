@@ -5,8 +5,10 @@ import io.restassured.http.ContentType;
 import io.restassured.response.Response;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.test.context.ActiveProfiles;
 
 import java.util.List;
 import java.util.Map;
@@ -19,10 +21,15 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@ActiveProfiles("test")
 class RestApiIntegrationTest {
 
-    @LocalServerPort
-    private int port;
+    private final int port;
+
+    @Autowired
+    RestApiIntegrationTest(@LocalServerPort int port) {
+        this.port = port;
+    }
 
     @BeforeEach
     void configureRestAssured() {
@@ -60,6 +67,18 @@ class RestApiIntegrationTest {
                 .extract().response();
         String trainer = trainerRegistration.path("username");
         String trainerPassword = trainerRegistration.path("password");
+
+        given().auth().preemptive().basic(trainee, traineePassword)
+                .when().get("/actuator/health")
+                .then().statusCode(200)
+                .body("status", equalTo("UP"))
+                .body("components.gymDatabase.status", equalTo("UP"))
+                .body("components.trainingCatalog.status", equalTo("UP"));
+
+        given().auth().preemptive().basic(trainee, traineePassword)
+                .when().get("/actuator/prometheus")
+                .then().statusCode(200)
+                .body(containsString("gym_profile_registrations_total"));
 
         given().auth().preemptive().basic(trainee, traineePassword)
                 .when().get("/api/v1/auth/login")
@@ -208,7 +227,10 @@ class RestApiIntegrationTest {
 
     @Test
     void exposesSwaggerAndConsistentClientErrors() {
-        given().when().get("/v3/api-docs")
+        Credentials credentials = registerTrainee("Swagger", "Viewer");
+
+        given().auth().preemptive().basic(credentials.username(), credentials.password())
+                .when().get("/v3/api-docs")
                 .then().statusCode(200)
                 .body("paths.'/api/v1/trainees'.post", not(nullValue()))
                 .body("components.schemas.TraineeUpdateResponse.properties.username",
@@ -230,9 +252,45 @@ class RestApiIntegrationTest {
     }
 
     @Test
-    void exposesH2ConsoleForLocalDatabaseInspection() {
+    void requiresAuthenticationForEveryOperationExceptRegistration() {
+        given().when().get("/api/v1/training-types")
+                .then().statusCode(401);
+        given().when().get("/actuator/health")
+                .then().statusCode(401);
+        given().when().get("/actuator/prometheus")
+                .then().statusCode(401);
+        given().when().get("/v3/api-docs")
+                .then().statusCode(401);
         given().when().get("/h2-console/")
-                .then().statusCode(200)
-                .body(containsString("H2 Console"));
+                .then().statusCode(401);
+    }
+
+    @Test
+    void preventsAuthenticatedUserFromOperatingOnAnotherProfile() {
+        Credentials first = registerTrainee("First", "Owner");
+        Credentials second = registerTrainee("Second", "Owner");
+
+        given().auth().preemptive().basic(first.username(), first.password())
+                .when().get("/api/v1/trainees/{username}", second.username())
+                .then().statusCode(403)
+                .contentType("application/problem+json");
+    }
+
+    private static Credentials registerTrainee(String firstName, String lastName) {
+        Response response = given()
+                .contentType(ContentType.JSON)
+                .body(Map.of(
+                        "firstName", firstName,
+                        "lastName", lastName,
+                        "dateOfBirth", "1996-03-04",
+                        "address", "Bogota"))
+                .when().post("/api/v1/trainees")
+                .then().statusCode(201)
+                .extract().response();
+
+        return new Credentials(response.path("username"), response.path("password"));
+    }
+
+    private record Credentials(String username, String password) {
     }
 }

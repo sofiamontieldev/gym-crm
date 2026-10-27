@@ -1,6 +1,5 @@
 package com.epam.gymcrm.service;
 
-import com.epam.gymcrm.config.AppConfig;
 import com.epam.gymcrm.dao.TraineeDAO;
 import com.epam.gymcrm.dao.TrainerDAO;
 import com.epam.gymcrm.dao.TrainingDAO;
@@ -12,7 +11,8 @@ import com.epam.gymcrm.model.Trainer;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -23,33 +23,40 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@SpringJUnitConfig(AppConfig.class)
+@SpringBootTest
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
+@ActiveProfiles("test")
 class ServiceIntegrationTest {
 
-    @Autowired
-    private GymCrmFacade facade;
+    private final GymCrmFacade facade;
+    private final PlatformTransactionManager transactionManager;
+    private final TraineeDAO traineeDAO;
+    private final TrainerDAO trainerDAO;
+    private final TrainingDAO trainingDAO;
+    private final UserDAO userDAO;
+    private final TraineeService traineeService;
+    private final TrainerService trainerService;
 
     @Autowired
-    private PlatformTransactionManager transactionManager;
+    ServiceIntegrationTest(
+            GymCrmFacade facade,
+            PlatformTransactionManager transactionManager,
+            TraineeDAO traineeDAO,
+            TrainerDAO trainerDAO,
+            TrainingDAO trainingDAO,
+            UserDAO userDAO,
+            TraineeService traineeService,
+            TrainerService trainerService) {
 
-    @Autowired
-    private TraineeDAO traineeDAO;
-
-    @Autowired
-    private TrainerDAO trainerDAO;
-
-    @Autowired
-    private TrainingDAO trainingDAO;
-
-    @Autowired
-    private UserDAO userDAO;
-
-    @Autowired
-    private TraineeService traineeService;
-
-    @Autowired
-    private TrainerService trainerService;
+        this.facade = facade;
+        this.transactionManager = transactionManager;
+        this.traineeDAO = traineeDAO;
+        this.trainerDAO = trainerDAO;
+        this.trainingDAO = trainingDAO;
+        this.userDAO = userDAO;
+        this.traineeService = traineeService;
+        this.trainerService = trainerService;
+    }
 
     @Test
     void generatesPersistentUsernamesAndReturnsInitializedTraineeProfile() {

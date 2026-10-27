@@ -19,10 +19,10 @@ public class HibernateConfig {
 
     @Bean
     public DataSource dataSource(
-            @Value("${db.driver}") String driver,
-            @Value("${db.url}") String url,
-            @Value("${db.username}") String username,
-            @Value("${db.password}") String password) {
+            @Value("${spring.datasource.driver-class-name}") String driver,
+            @Value("${spring.datasource.url}") String url,
+            @Value("${spring.datasource.username}") String username,
+            @Value("${spring.datasource.password}") String password) {
 
         DriverManagerDataSource dataSource = new DriverManagerDataSource();
         dataSource.setDriverClassName(driver);
@@ -35,13 +35,11 @@ public class HibernateConfig {
     @Bean
     public LocalSessionFactoryBean sessionFactory(
             DataSource dataSource,
-            @Value("${hibernate.dialect}") String dialect,
-            @Value("${hibernate.hbm2ddl.auto}") String ddlMode,
-            @Value("${hibernate.show_sql}") String showSql,
-            @Value("${hibernate.format_sql}") String formatSql) {
+            @Value("${spring.jpa.hibernate.ddl-auto}") String ddlMode,
+            @Value("${spring.jpa.show-sql:false}") String showSql,
+            @Value("${spring.jpa.properties.hibernate.format_sql:true}") String formatSql) {
 
         Properties properties = new Properties();
-        properties.setProperty("hibernate.dialect", dialect);
         properties.setProperty("hibernate.hbm2ddl.auto", ddlMode);
         properties.setProperty("hibernate.show_sql", showSql);
         properties.setProperty("hibernate.format_sql", formatSql);

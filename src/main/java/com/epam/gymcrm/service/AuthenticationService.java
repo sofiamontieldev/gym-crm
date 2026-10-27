@@ -3,6 +3,7 @@ package com.epam.gymcrm.service;
 import com.epam.gymcrm.dao.UserDAO;
 import com.epam.gymcrm.exception.AuthenticationException;
 import com.epam.gymcrm.model.User;
+import com.epam.gymcrm.monitoring.GymMetrics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -17,10 +18,16 @@ public class AuthenticationService {
 
     private final UserDAO userDAO;
     private final PasswordEncoder passwordEncoder;
+    private final GymMetrics gymMetrics;
 
-    public AuthenticationService(UserDAO userDAO, PasswordEncoder passwordEncoder) {
+    public AuthenticationService(
+            UserDAO userDAO,
+            PasswordEncoder passwordEncoder,
+            GymMetrics gymMetrics) {
+
         this.userDAO = userDAO;
         this.passwordEncoder = passwordEncoder;
+        this.gymMetrics = gymMetrics;
     }
 
     @Transactional(readOnly = true)
@@ -55,6 +62,7 @@ public class AuthenticationService {
             throw new IllegalArgumentException("newPassword must contain exactly 10 characters");
         }
         user.changePassword(passwordEncoder.encode(newPassword));
+        gymMetrics.passwordChanged(user.getRole());
         log.info("Password changed for username {}", username);
     }
 

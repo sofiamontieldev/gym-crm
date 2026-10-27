@@ -1,6 +1,5 @@
 package com.epam.gymcrm.dao;
 
-import com.epam.gymcrm.config.AppConfig;
 import com.epam.gymcrm.model.Trainee;
 import com.epam.gymcrm.model.Trainer;
 import com.epam.gymcrm.model.Training;
@@ -12,7 +11,8 @@ import org.hibernate.SessionFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
@@ -21,18 +21,25 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@SpringJUnitConfig(AppConfig.class)
+@SpringBootTest
 @Transactional
+@ActiveProfiles("test")
 class TrainingDAOTest {
 
-    @Autowired
-    private SessionFactory sessionFactory;
+    private final SessionFactory sessionFactory;
+    private final TrainingDAO trainingDAO;
+    private final TrainingTypeDAO trainingTypeDAO;
 
     @Autowired
-    private TrainingDAO trainingDAO;
+    TrainingDAOTest(
+            SessionFactory sessionFactory,
+            TrainingDAO trainingDAO,
+            TrainingTypeDAO trainingTypeDAO) {
 
-    @Autowired
-    private TrainingTypeDAO trainingTypeDAO;
+        this.sessionFactory = sessionFactory;
+        this.trainingDAO = trainingDAO;
+        this.trainingTypeDAO = trainingTypeDAO;
+    }
 
     private Training firstTraining;
 
