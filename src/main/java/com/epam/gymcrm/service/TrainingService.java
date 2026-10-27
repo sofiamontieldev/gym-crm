@@ -5,6 +5,7 @@ import com.epam.gymcrm.dao.TrainerDAO;
 import com.epam.gymcrm.dao.TrainingDAO;
 import com.epam.gymcrm.dao.TrainingTypeDAO;
 import com.epam.gymcrm.exception.ResourceNotFoundException;
+import com.epam.gymcrm.integration.reports.TrainerWorkloadEventEmitter;
 import com.epam.gymcrm.model.Trainee;
 import com.epam.gymcrm.model.Trainer;
 import com.epam.gymcrm.model.Training;
@@ -29,6 +30,7 @@ public class TrainingService {
     private final TrainingTypeDAO trainingTypeDAO;
     private final AuthenticationService authenticationService;
     private final GymMetrics gymMetrics;
+    private final TrainerWorkloadEventEmitter workloadEventEmitter;
 
     public TrainingService(
             TrainingDAO trainingDAO,
@@ -36,7 +38,8 @@ public class TrainingService {
             TrainerDAO trainerDAO,
             TrainingTypeDAO trainingTypeDAO,
             AuthenticationService authenticationService,
-            GymMetrics gymMetrics) {
+            GymMetrics gymMetrics,
+            TrainerWorkloadEventEmitter workloadEventEmitter) {
 
         this.trainingDAO = trainingDAO;
         this.traineeDAO = traineeDAO;
@@ -44,6 +47,7 @@ public class TrainingService {
         this.trainingTypeDAO = trainingTypeDAO;
         this.authenticationService = authenticationService;
         this.gymMetrics = gymMetrics;
+        this.workloadEventEmitter = workloadEventEmitter;
     }
 
     @Transactional
@@ -71,6 +75,7 @@ public class TrainingService {
                 trainingDuration);
 
         trainingDAO.save(training);
+        workloadEventEmitter.trainingAdded(trainer, trainingDate, trainingDuration);
         gymMetrics.trainingCreated(training.getTrainingType().getName());
         log.info(
                 "Training created with id {} for trainee {} and trainer {}",
@@ -98,6 +103,7 @@ public class TrainingService {
                 trainingDate,
                 trainingDuration);
         trainingDAO.save(training);
+        workloadEventEmitter.trainingAdded(trainer, trainingDate, trainingDuration);
         gymMetrics.trainingCreated(training.getTrainingType().getName());
         log.info("Training created with id {} for trainee {} and trainer {}",
                 training.getId(), traineeUsername, trainerUsername);

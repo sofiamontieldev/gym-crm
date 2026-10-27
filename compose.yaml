@@ -1,0 +1,114 @@
+name: gym-platform
+
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    networks:
+      - gym-network
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  mongodb:
+    image: mongo:8.0
+    ports:
+      - "127.0.0.1:27018:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: gym_reports
+    volumes:
+      - mongodb-data:/data/db
+      - ./docker/mongodb/init-gym-reports.js:/docker-entrypoint-initdb.d/init-gym-reports.js:ro
+    networks:
+      - gym-network
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - mongosh --quiet --username "$${MONGO_INITDB_ROOT_USERNAME}" --password "$${MONGO_INITDB_ROOT_PASSWORD}" --authenticationDatabase admin --eval "db.adminCommand('ping').ok" | grep 1
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+
+  activemq:
+    image: apache/activemq-classic:6.2.0
+    ports:
+      - "127.0.0.1:61616:61616"
+      - "127.0.0.1:8161:8161"
+    networks:
+      - gym-network
+    restart: unless-stopped
+
+  reports:
+    image: gym-reports:1.0
+    build:
+      context: ../gym-reports
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:8081:8081"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      MONGODB_URI: mongodb://${MONGO_ROOT_USER}:${MONGO_ROOT_PASSWORD}@mongodb:27017/gym_reports?authSource=admin
+      GYM_INTEGRATIONS_ACTIVEMQ_ENABLED: "true"
+      ACTIVEMQ_BROKER_URL: tcp://activemq:61616
+      ACTIVEMQ_USER: admin
+      ACTIVEMQ_PASSWORD: admin
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      activemq:
+        condition: service_started
+    networks:
+      - gym-network
+    restart: unless-stopped
+
+  main:
+    image: gym-crm:1.0
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_USER}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD}
+      ACTIVEMQ_BROKER_URL: tcp://activemq:61616
+      ACTIVEMQ_USER: admin
+      ACTIVEMQ_PASSWORD: admin
+      GYM_REPORTS_BASE_URL: http://reports:8081
+    depends_on:
+      mysql:
+        condition: service_healthy
+      activemq:
+        condition: service_started
+      reports:
+        condition: service_healthy
+    networks:
+      - gym-network
+    restart: unless-stopped
+
+networks:
+  gym-network:
+    name: gym-network
+    driver: bridge
+
+volumes:
+  mysql-data:
+    name: gym-mysql-data
+  mongodb-data:
+    name: gym-mongodb-data-compose

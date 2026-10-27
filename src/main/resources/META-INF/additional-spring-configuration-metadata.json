@@ -1,0 +1,33 @@
+{
+  "properties": [
+    {
+      "name": "gym.integrations.reports.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Enables ActiveMQ publishing and the HTTP client for gym-reports.",
+      "defaultValue": false
+    },
+    {
+      "name": "gym.messaging.trainer-workload-queue",
+      "type": "java.lang.String",
+      "description": "ActiveMQ destination used for trainer workload events.",
+      "defaultValue": "trainer.workload"
+    },
+    {
+      "name": "gym.reports.base-url",
+      "type": "java.net.URI",
+      "description": "Base URL of the gym-reports service."
+    },
+    {
+      "name": "gym.reports.connect-timeout",
+      "type": "java.time.Duration",
+      "description": "Connection timeout for gym-reports HTTP calls.",
+      "defaultValue": "2s"
+    },
+    {
+      "name": "gym.reports.read-timeout",
+      "type": "java.time.Duration",
+      "description": "Read timeout for gym-reports HTTP calls.",
+      "defaultValue": "3s"
+    }
+  ]
+}

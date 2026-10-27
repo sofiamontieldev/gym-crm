@@ -3,6 +3,7 @@ package com.epam.gymcrm.api;
 import com.epam.gymcrm.exception.AuthenticationException;
 import com.epam.gymcrm.exception.ForbiddenException;
 import com.epam.gymcrm.exception.ResourceNotFoundException;
+import com.epam.gymcrm.exception.ReportsUnavailableException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,6 +60,12 @@ public class GlobalExceptionHandler {
     ResponseEntity<ProblemDetail> conflict(RuntimeException exception,
                                            HttpServletRequest request) {
         return problem(HttpStatus.CONFLICT, exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(ReportsUnavailableException.class)
+    ResponseEntity<ProblemDetail> serviceUnavailable(ReportsUnavailableException exception,
+                                                      HttpServletRequest request) {
+        return problem(HttpStatus.SERVICE_UNAVAILABLE, exception.getMessage(), request);
     }
 
     @ExceptionHandler(Exception.class)

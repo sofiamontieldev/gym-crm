@@ -4,6 +4,7 @@ import com.epam.gymcrm.dao.TrainerDAO;
 import com.epam.gymcrm.dao.TrainingTypeDAO;
 import com.epam.gymcrm.exception.AuthenticationException;
 import com.epam.gymcrm.exception.ResourceNotFoundException;
+import com.epam.gymcrm.integration.reports.TrainerWorkloadEventEmitter;
 import com.epam.gymcrm.model.Trainer;
 import com.epam.gymcrm.model.TrainingType;
 import com.epam.gymcrm.model.User;
@@ -27,6 +28,7 @@ public class TrainerService {
     private final UsernameGenerator usernameGenerator;
     private final PasswordEncoder passwordEncoder;
     private final GymMetrics gymMetrics;
+    private final TrainerWorkloadEventEmitter workloadEventEmitter;
 
     public TrainerService(
             TrainerDAO trainerDAO,
@@ -35,7 +37,8 @@ public class TrainerService {
             PasswordGenerator passwordGenerator,
             UsernameGenerator usernameGenerator,
             PasswordEncoder passwordEncoder,
-            GymMetrics gymMetrics) {
+            GymMetrics gymMetrics,
+            TrainerWorkloadEventEmitter workloadEventEmitter) {
 
         this.trainerDAO = trainerDAO;
         this.trainingTypeDAO = trainingTypeDAO;
@@ -44,6 +47,7 @@ public class TrainerService {
         this.usernameGenerator = usernameGenerator;
         this.passwordEncoder = passwordEncoder;
         this.gymMetrics = gymMetrics;
+        this.workloadEventEmitter = workloadEventEmitter;
     }
 
     @Transactional
@@ -75,6 +79,7 @@ public class TrainerService {
 
         Trainer trainer = new Trainer(user, specialization);
         trainerDAO.save(trainer);
+        workloadEventEmitter.trainerStatusChanged(trainer);
         gymMetrics.profileRegistered(UserRole.TRAINER);
         log.info("Trainer created with id {} and username {}", trainer.getId(), username);
         return new RegistrationResult<>(trainer, username, password);
@@ -116,6 +121,7 @@ public class TrainerService {
         Trainer trainer = requireAuthenticatedTrainer(username, password);
         trainer.updatePersonalData(firstName, lastName);
         trainer.setSpecialization(findTrainingType(specializationName));
+        workloadEventEmitter.trainerStatusChanged(trainer);
         log.info("Trainer updated for username {}", username);
         return trainer;
     }
@@ -130,6 +136,7 @@ public class TrainerService {
         Trainer trainer = selectTrainer(username);
         trainer.updatePersonalData(firstName, lastName);
         trainer.getUser().setActive(active);
+        workloadEventEmitter.trainerStatusChanged(trainer);
         log.info("Trainer updated for username {}", username);
         return trainer;
     }
@@ -139,6 +146,7 @@ public class TrainerService {
         authenticationService.verifyCredentials(username, password);
         Trainer trainer = findTrainerForCredentials(username);
         trainer.getUser().activate();
+        workloadEventEmitter.trainerStatusChanged(trainer);
         log.info("Trainer activated for username {}", username);
     }
 
@@ -147,6 +155,7 @@ public class TrainerService {
         authenticationService.verifyCredentials(username, password);
         Trainer trainer = findTrainerForCredentials(username);
         trainer.getUser().deactivate();
+        workloadEventEmitter.trainerStatusChanged(trainer);
         log.info("Trainer deactivated for username {}", username);
     }
 

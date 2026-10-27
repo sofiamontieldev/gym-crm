@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.util.List;
@@ -22,6 +23,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class RestApiIntegrationTest {
 
     private final int port;
@@ -42,7 +44,7 @@ class RestApiIntegrationTest {
                 .contentType(ContentType.JSON)
                 .body(Map.of(
                         "firstName", "Elena",
-                        "lastName", "RestApi",
+                        "lastName", "Ramirez",
                         "dateOfBirth", "1996-03-04",
                         "address", "Bogota"))
                 .when().post("/api/v1/trainees")
@@ -58,7 +60,7 @@ class RestApiIntegrationTest {
                 .contentType(ContentType.JSON)
                 .body(Map.of(
                         "firstName", "Mateo",
-                        "lastName", "RestApi",
+                        "lastName", "Salazar",
                         "specialization", "YOGA"))
                 .when().post("/api/v1/trainers")
                 .then().statusCode(201)
@@ -88,7 +90,7 @@ class RestApiIntegrationTest {
                 .when().get("/api/v1/trainees/{username}", trainee)
                 .then().statusCode(200)
                 .body("firstName", equalTo("Elena"))
-                .body("lastName", equalTo("RestApi"))
+                .body("lastName", equalTo("Ramirez"))
                 .body("dateOfBirth", equalTo("1996-03-04"))
                 .body("address", equalTo("Bogota"))
                 .body("active", equalTo(true))
@@ -98,7 +100,7 @@ class RestApiIntegrationTest {
                 .contentType(ContentType.JSON)
                 .body(Map.of(
                         "firstName", "Elena",
-                        "lastName", "Updated",
+                        "lastName", "Mendoza",
                         "dateOfBirth", "1996-03-04",
                         "address", "Medellin",
                         "active", true))
@@ -106,7 +108,7 @@ class RestApiIntegrationTest {
                 .then().statusCode(200)
                 .body("username", equalTo(trainee))
                 .body("firstName", equalTo("Elena"))
-                .body("lastName", equalTo("Updated"))
+                .body("lastName", equalTo("Mendoza"))
                 .body("dateOfBirth", equalTo("1996-03-04"))
                 .body("address", equalTo("Medellin"))
                 .body("active", equalTo(true))
@@ -116,19 +118,19 @@ class RestApiIntegrationTest {
                 .when().get("/api/v1/trainers/{username}", trainer)
                 .then().statusCode(200)
                 .body("firstName", equalTo("Mateo"))
-                .body("lastName", equalTo("RestApi"))
+                .body("lastName", equalTo("Salazar"))
                 .body("specialization", equalTo("YOGA"))
                 .body("active", equalTo(true))
                 .body("trainees", hasSize(0));
 
         given().auth().preemptive().basic(trainer, trainerPassword)
                 .contentType(ContentType.JSON)
-                .body(Map.of("firstName", "Mateo", "lastName", "Updated", "active", true))
+                .body(Map.of("firstName", "Mateo", "lastName", "Restrepo", "active", true))
                 .when().put("/api/v1/trainers/{username}", trainer)
                 .then().statusCode(200)
                 .body("username", equalTo(trainer))
                 .body("firstName", equalTo("Mateo"))
-                .body("lastName", equalTo("Updated"))
+                .body("lastName", equalTo("Restrepo"))
                 .body("specialization", equalTo("YOGA"))
                 .body("active", equalTo(true))
                 .body("trainees", hasSize(0));
@@ -138,7 +140,7 @@ class RestApiIntegrationTest {
                 .then().statusCode(200)
                 .body("username[0]", equalTo(trainer))
                 .body("firstName[0]", equalTo("Mateo"))
-                .body("lastName[0]", equalTo("Updated"))
+                .body("lastName[0]", equalTo("Restrepo"))
                 .body("specialization[0]", equalTo("YOGA"));
 
         given().auth().preemptive().basic(trainee, traineePassword)
@@ -148,7 +150,7 @@ class RestApiIntegrationTest {
                 .then().statusCode(200)
                 .body("username[0]", equalTo(trainer))
                 .body("firstName[0]", equalTo("Mateo"))
-                .body("lastName[0]", equalTo("Updated"))
+                .body("lastName[0]", equalTo("Restrepo"))
                 .body("specialization[0]", equalTo("YOGA"));
 
         given().auth().preemptive().basic(trainer, trainerPassword)
@@ -227,7 +229,7 @@ class RestApiIntegrationTest {
 
     @Test
     void exposesSwaggerAndConsistentClientErrors() {
-        Credentials credentials = registerTrainee("Swagger", "Viewer");
+        Credentials credentials = registerTrainee("Sofia", "Herrera");
 
         given().auth().preemptive().basic(credentials.username(), credentials.password())
                 .when().get("/v3/api-docs")
@@ -239,7 +241,7 @@ class RestApiIntegrationTest {
                         not(nullValue()));
 
         given().contentType(ContentType.JSON)
-                .body(Map.of("firstName", "", "lastName", "Invalid"))
+                .body(Map.of("firstName", "", "lastName", "Herrera"))
                 .when().post("/api/v1/trainees")
                 .then().statusCode(400)
                 .contentType("application/problem+json")
@@ -256,7 +258,8 @@ class RestApiIntegrationTest {
         given().when().get("/api/v1/training-types")
                 .then().statusCode(401);
         given().when().get("/actuator/health")
-                .then().statusCode(401);
+                .then().statusCode(200)
+                .body("status", equalTo("UP"));
         given().when().get("/actuator/prometheus")
                 .then().statusCode(401);
         given().when().get("/v3/api-docs")
@@ -267,8 +270,8 @@ class RestApiIntegrationTest {
 
     @Test
     void preventsAuthenticatedUserFromOperatingOnAnotherProfile() {
-        Credentials first = registerTrainee("First", "Owner");
-        Credentials second = registerTrainee("Second", "Owner");
+        Credentials first = registerTrainee("Laura", "Gomez");
+        Credentials second = registerTrainee("Daniel", "Torres");
 
         given().auth().preemptive().basic(first.username(), first.password())
                 .when().get("/api/v1/trainees/{username}", second.username())
