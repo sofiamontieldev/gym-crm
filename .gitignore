@@ -1,6 +1,10 @@
 
 target/
 /data/
+.env
+/docs/containerization/
+/scripts/capture-container-evidence.ps1
+/scripts/create_containerization_evidence_docx.py
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
