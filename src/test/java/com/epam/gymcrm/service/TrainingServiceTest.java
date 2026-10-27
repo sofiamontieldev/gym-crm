@@ -9,6 +9,7 @@ import com.epam.gymcrm.dao.TrainerDAO;
 import com.epam.gymcrm.dao.TrainingDAO;
 import com.epam.gymcrm.dao.TrainingTypeDAO;
 import com.epam.gymcrm.exception.ResourceNotFoundException;
+import com.epam.gymcrm.integration.reports.TrainerWorkloadEventEmitter;
 import com.epam.gymcrm.model.Trainee;
 import com.epam.gymcrm.model.Trainer;
 import com.epam.gymcrm.model.Training;
@@ -42,6 +43,7 @@ class TrainingServiceTest {
     private AuthenticationService authenticationService;
     private TrainingService trainingService;
     private GymMetrics gymMetrics;
+    private TrainerWorkloadEventEmitter workloadEventEmitter;
 
     @BeforeEach
     void setUp() {
@@ -51,13 +53,15 @@ class TrainingServiceTest {
         trainingTypeDAO = mock(TrainingTypeDAO.class);
         authenticationService = mock(AuthenticationService.class);
         gymMetrics = mock(GymMetrics.class);
+        workloadEventEmitter = mock(TrainerWorkloadEventEmitter.class);
         trainingService = new TrainingService(
                 trainingDAO,
                 traineeDAO,
                 trainerDAO,
                 trainingTypeDAO,
                 authenticationService,
-                gymMetrics);
+                gymMetrics,
+                workloadEventEmitter);
     }
 
     @Test
@@ -86,6 +90,8 @@ class TrainingServiceTest {
         assertSame(fitness, training.getTrainingType());
         assertEquals("Morning Fitness", training.getTrainingName());
         verify(trainingDAO).save(training);
+        verify(workloadEventEmitter).trainingAdded(
+                trainer, LocalDate.of(2026, 10, 5), 60);
         verify(gymMetrics).trainingCreated("FITNESS");
     }
 
@@ -115,6 +121,7 @@ class TrainingServiceTest {
                         60));
 
         verifyNoInteractions(gymMetrics);
+        verifyNoInteractions(workloadEventEmitter);
     }
 
     @Test

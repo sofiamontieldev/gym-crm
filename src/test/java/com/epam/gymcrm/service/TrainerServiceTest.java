@@ -7,6 +7,7 @@ import ch.qos.logback.core.read.ListAppender;
 import com.epam.gymcrm.dao.TrainerDAO;
 import com.epam.gymcrm.dao.TrainingTypeDAO;
 import com.epam.gymcrm.model.Trainer;
+import com.epam.gymcrm.integration.reports.TrainerWorkloadEventEmitter;
 import com.epam.gymcrm.model.TrainingType;
 import com.epam.gymcrm.model.User;
 import com.epam.gymcrm.model.UserRole;
@@ -39,6 +40,7 @@ class TrainerServiceTest {
     private TrainerService trainerService;
     private PasswordEncoder passwordEncoder;
     private GymMetrics gymMetrics;
+    private TrainerWorkloadEventEmitter workloadEventEmitter;
 
     @BeforeEach
     void setUp() {
@@ -49,6 +51,7 @@ class TrainerServiceTest {
         usernameGenerator = mock(UsernameGenerator.class);
         passwordEncoder = mock(PasswordEncoder.class);
         gymMetrics = mock(GymMetrics.class);
+        workloadEventEmitter = mock(TrainerWorkloadEventEmitter.class);
         trainerService = new TrainerService(
                 trainerDAO,
                 trainingTypeDAO,
@@ -56,7 +59,8 @@ class TrainerServiceTest {
                 passwordGenerator,
                 usernameGenerator,
                 passwordEncoder,
-                gymMetrics);
+                gymMetrics,
+                workloadEventEmitter);
     }
 
     @Test
@@ -73,6 +77,7 @@ class TrainerServiceTest {
         assertEquals("bcrypt-hash", trainer.getUser().getPasswordHash());
         assertSame(fitness, trainer.getSpecialization());
         verify(trainerDAO).save(trainer);
+        verify(workloadEventEmitter).trainerStatusChanged(trainer);
         verify(gymMetrics).profileRegistered(UserRole.TRAINER);
     }
 
@@ -91,6 +96,7 @@ class TrainerServiceTest {
                 () -> trainerService.createTrainer("Andres", "Gomez", "FITNESS"));
 
         verifyNoInteractions(gymMetrics);
+        verifyNoInteractions(workloadEventEmitter);
     }
 
     @Test
